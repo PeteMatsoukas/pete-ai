@@ -1,1 +1,1 @@
-# TBP-AI-Agent
+# pete-ai
