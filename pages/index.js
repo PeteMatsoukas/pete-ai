@@ -24,31 +24,22 @@ const SUGS = [
 
 function Logo({ size, style }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style={style}>
-      <circle cx="50" cy="50" r="49" fill="#7ab2d4" />
-      <circle cx="50" cy="50" r="44" fill="#0d1b3e" />
-      <circle cx="50" cy="50" r="43" fill="#7ab2d4" />
-      <circle cx="50" cy="50" r="39" fill="#0d1b3e" />
-      <ellipse cx="42" cy="36" rx="17" ry="12" fill="white" />
-      <ellipse cx="57" cy="39" rx="13" ry="10" fill="white" />
-      <ellipse cx="30" cy="41" rx="9" ry="7" fill="white" />
-      <rect x="27" y="41" width="42" height="7" fill="white" />
-      <rect x="38" y="36" width="21" height="20" rx="2" fill="#7ab2d4" />
-      <rect x="40" y="39" width="17" height="2" rx="0.8" fill="#0d1b3e" />
-      <rect x="40" y="42.5" width="17" height="2" rx="0.8" fill="#0d1b3e" />
-      <rect x="40" y="46" width="17" height="2" rx="0.8" fill="#0d1b3e" />
-      <rect x="40" y="49.5" width="17" height="2" rx="0.8" fill="#0d1b3e" />
-      <rect x="28" y="34" width="8" height="10" rx="1" fill="none" stroke="#0d1b3e" strokeWidth="1.5" />
-      <line x1="30" y1="37" x2="34" y2="37" stroke="#0d1b3e" strokeWidth="0.9" />
-      <line x1="30" y1="39" x2="34" y2="39" stroke="#0d1b3e" strokeWidth="0.9" />
-      <line x1="30" y1="41" x2="34" y2="41" stroke="#0d1b3e" strokeWidth="0.9" />
-      <circle cx="65" cy="30" r="2.5" fill="#0d1b3e" />
-      <circle cx="71" cy="38" r="2" fill="#0d1b3e" />
-      <line x1="65" y1="30" x2="71" y2="38" stroke="#0d1b3e" strokeWidth="1.2" />
-      <line x1="59" y1="34" x2="65" y2="30" stroke="#0d1b3e" strokeWidth="1.2" />
-      <text x="50" y="70" textAnchor="middle" fill="white" fontSize="9.5" fontWeight="700" fontFamily="Arial,sans-serif" letterSpacing="2.5">TECH</text>
-      <text x="50" y="79" textAnchor="middle" fill="white" fontSize="6" fontWeight="400" fontFamily="Arial,sans-serif" letterSpacing="2">BY PETE</text>
-    </svg>
+    <img
+      src="/pete.jpg"
+      alt="Pete Matsoukas"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        border: "2.5px solid #7ab2d4",
+        objectFit: "cover",
+        objectPosition: "center top",
+        boxShadow: size > 80 ? "0 0 30px rgba(122,178,212,0.45)" : "none",
+        flexShrink: 0,
+        display: "block",
+        ...style
+      }}
+    />
   );
 }
 
