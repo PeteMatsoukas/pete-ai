@@ -106,7 +106,7 @@ function Msg({ content }) {
       continue;
     }
     if (l.startsWith("## ")) { els.push(<h3 key={k++} style={{color:"#7ab2d4",fontSize:14,fontWeight:700,margin:"14px 0 6px"}}>{l.slice(3)}</h3>); i++; continue; }
-    if (l.startsWith("# ")) { els.push(<h2 key={k++} style={{color:"#a8c8e0",fontSize:15,fontWeight:700,margin:"14px 0 6px"}}>{l.slice(2)}</h2>); i++; continue; }
+    if (l.startsWith("# "))  { els.push(<h2 key={k++} style={{color:"#a8c8e0",fontSize:15,fontWeight:700,margin:"14px 0 6px"}}>{l.slice(2)}</h2>); i++; continue; }
     if (l.startsWith("---")) { els.push(<hr key={k++} style={{border:"none",borderTop:"1px solid rgba(122,178,212,0.15)",margin:"12px 0"}}/>); i++; continue; }
     if (l.startsWith("- ") || l.startsWith("* ")) {
       const it = [];
@@ -130,16 +130,14 @@ function Msg({ content }) {
 function Dots() {
   return (
     <div style={{display:"flex",gap:5,padding:"12px 14px",alignItems:"center"}}>
-      {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:"#7ab2d4",animation:"bounce 1.2s infinite",animationDelay:`${i*0.2}s`}}/>)}
+      {[0,1,2].map(i => <div key={i} style={{width:6,height:6,borderRadius:"50%",background:"#7ab2d4",animation:"bounce 1.2s infinite",animationDelay:`${i*0.2}s`}}/>)}
     </div>
   );
 }
 
 export default function App() {
-  // FIX 1: mobile initialises as false (SSR-safe). Window only touched inside useEffect.
   const [mobile, setMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
-
   const [sessions, setSessions] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [input, setInput] = useState("");
@@ -157,17 +155,11 @@ export default function App() {
 
   useEffect(() => {
     setMounted(true);
-
-    // FIX 2: real viewport height CSS variable — solves iOS Safari 100vh bug
     const setVh = () => {
       document.documentElement.style.setProperty("--vh", `${window.innerHeight * 0.01}px`);
     };
     setVh();
-
-    const check = () => {
-      setMobile(window.innerWidth < 768);
-      setVh();
-    };
+    const check = () => { setMobile(window.innerWidth < 768); setVh(); };
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
@@ -178,9 +170,7 @@ export default function App() {
   const newChat = () => {
     const id = uid();
     setSessions(p => [{ id, title: "New Chat", messages: [] }, ...p]);
-    setActiveId(id);
-    setInput("");
-    setChatStarted(false);
+    setActiveId(id); setInput(""); setChatStarted(false);
   };
 
   useEffect(() => { newChat(); }, []);
@@ -199,9 +189,7 @@ export default function App() {
   const send = async (text) => {
     const t = (text || input).trim();
     if (!t || loading || !activeId) return;
-    setInput("");
-    setChatStarted(true);
-    if (mobile) setDrawerOpen(false);
+    setInput(""); setChatStarted(true); setDrawerOpen(false);
     if (taRef.current) taRef.current.style.height = "auto";
     const uMsg = { role: "user", content: t };
     const newMsgs = [...msgs, uMsg];
@@ -218,13 +206,10 @@ export default function App() {
       updateChat(activeId, [...newMsgs, { role: "assistant", content: reply }]);
     } catch (e) {
       updateChat(activeId, [...newMsgs, { role: "assistant", content: "Connection error. Please try again." }]);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const onKey = (e) => {
-    // FIX 3: on mobile Enter adds newline (standard mobile UX). Send button used instead.
     if (e.key === "Enter" && !e.shiftKey && !mobile) { e.preventDefault(); send(); }
   };
 
@@ -234,42 +219,28 @@ export default function App() {
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
   };
 
-  // Prevent flash of wrong layout during SSR hydration
   if (!mounted) return null;
 
   const LeftPanel = (
     <div style={{
-      width: mobile ? 280 : 240,
-      background: "#1a2840",
-      borderRight: "1px solid rgba(122,178,212,0.12)",
-      display: "flex",
-      flexDirection: "column",
-      flexShrink: 0,
-      overflowY: "auto",
-      WebkitOverflowScrolling: "touch",
-      // FIX 4: fixed position on mobile so drawer overlays content properly
-      ...(mobile ? {
-        position: "fixed",
-        top: 0, left: 0, bottom: 0,
-        zIndex: 200,
-        transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
-        transition: "transform 0.28s cubic-bezier(0.4,0,0.2,1)",
-        boxShadow: drawerOpen ? "8px 0 40px rgba(0,0,0,0.7)" : "none",
-      } : {})
+      width: 270, background: "#0f1928",
+      borderRight: "1px solid rgba(122,178,212,0.15)",
+      display: "flex", flexDirection: "column",
+      overflowY: "auto", WebkitOverflowScrolling: "touch",
+      position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 300,
+      transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
+      transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+      boxShadow: drawerOpen ? "12px 0 48px rgba(0,0,0,0.8)" : "none",
     }}>
-
-      {mobile && (
-        <div style={{padding:"12px 14px",borderBottom:"1px solid rgba(122,178,212,0.15)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#162032",flexShrink:0}}>
-          <span style={{fontSize:12,fontWeight:700,color:"#7ab2d4",letterSpacing:"0.08em",textTransform:"uppercase"}}>Menu</span>
-          <button onClick={() => setDrawerOpen(false)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>×</button>
-        </div>
-      )}
-
-      <div style={{padding:"24px 20px 20px",borderBottom:"1px solid rgba(122,178,212,0.1)",textAlign:"center"}}>
-        <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:100,height:100,borderRadius:"50%",border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",margin:"0 auto 14px",display:"block",boxShadow:"0 0 24px rgba(122,178,212,0.25)"}}/>
-        <div style={{fontSize:18,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>Pete Matsoukas</div>
-        <div style={{fontSize:13,color:"#7ab2d4",fontWeight:600,marginTop:4}}>IT Solutions Architect & MCT Trainer</div>
-        <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(122,178,212,0.12)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0a1220",flexShrink:0}}>
+        <span style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.12em",textTransform:"uppercase"}}>About Pete</span>
+        <button onClick={() => setDrawerOpen(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>×</button>
+      </div>
+      <div style={{padding:"28px 20px 22px",borderBottom:"1px solid rgba(122,178,212,0.1)",textAlign:"center"}}>
+        <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:110,height:110,borderRadius:"50%",border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",margin:"0 auto 16px",display:"block",boxShadow:"0 0 28px rgba(122,178,212,0.3)"}}/>
+        <div style={{fontSize:19,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>Pete Matsoukas</div>
+        <div style={{fontSize:13,color:"#7ab2d4",fontWeight:600,marginTop:5,lineHeight:1.4}}>IT Solutions Architect & MCT Trainer</div>
+        <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:9}}>
           <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>🌐 techbypete.com</a>
           <a href={"mailto:"+CONTACT.email} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>✉️ {CONTACT.email}</a>
           <a href={"tel:"+CONTACT.phone} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>📞 {CONTACT.phone}</a>
@@ -279,17 +250,15 @@ export default function App() {
           </a>
         </div>
       </div>
-
       <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(122,178,212,0.1)"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Credentials</div>
         {[{m:"🥇",l:"Microsoft MCT"},{m:"🥈",l:"MCP Certified"},{m:"🥉",l:"5x VMware VCP"}].map((b,i) => (
-          <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:8,padding:"8px 12px",marginBottom:5}}>
+          <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.1)",borderRadius:8,padding:"8px 12px",marginBottom:5}}>
             <span style={{fontSize:16}}>{b.m}</span>
             <span style={{fontSize:13,fontWeight:600,color:"#a8c8e0"}}>{b.l}</span>
           </div>
         ))}
       </div>
-
       <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(122,178,212,0.1)"}}>
         <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Training Delivered</div>
         {[
@@ -309,7 +278,6 @@ export default function App() {
           </div>
         ))}
       </div>
-
       <div style={{padding:"14px 16px",flex:1}}>
         <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Certifications</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
@@ -328,70 +296,99 @@ export default function App() {
       <style>{`
         @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(122,178,212,0.4)}50%{box-shadow:0 0 0 6px rgba(122,178,212,0)}}
         *{box-sizing:border-box;margin:0;padding:0}
-        /* FIX 5: -webkit-fill-available solves iOS Safari 100vh bug */
         html{height:100%;height:-webkit-fill-available}
         body{height:100%;height:-webkit-fill-available;overflow:hidden}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(122,178,212,0.25);border-radius:10px}
         textarea{resize:none}textarea:focus{outline:none}textarea::placeholder{color:#4a6a82}
-        .sbtn:active{transform:scale(0.96)}
-        .sbtn:hover:not(:disabled){background:#0ea5e9!important}
+        .sbtn:active{transform:scale(0.94)}
+        .sbtn:hover:not(:disabled){opacity:0.85}
         .sbtn:disabled{opacity:.3;cursor:not-allowed}
         .card:hover{background:rgba(122,178,212,0.1)!important;border-color:rgba(122,178,212,0.35)!important}
-        .card:active{transform:scale(0.97)}
+        .card:active{transform:scale(0.98)}
         .card:hover .ct{color:#a8d4f0!important}
         .fin{animation:fadeUp 0.25s ease forwards}
-        .newchat:active{opacity:0.8}
+        .pete-btn:hover{background:linear-gradient(135deg,rgba(122,178,212,0.18),rgba(14,165,233,0.12))!important;border-color:rgba(122,178,212,0.6)!important}
+        .pete-btn:active{transform:scale(0.97)}
         .chatitem:hover{background:rgba(122,178,212,0.1)!important}
       `}</style>
 
-      {/* FIX 6: use CSS variable --vh instead of 100vh */}
       <div style={{
-        display:"flex",flexDirection:"column",
+        display:"flex", flexDirection:"column",
         height:"calc(var(--vh, 1vh) * 100)",
         background:"#162032",
         fontFamily:"'DM Sans','Segoe UI',sans-serif",
-        color:"#e2e8f0",
-        overflow:"hidden",
-        position:"relative"
+        color:"#e2e8f0", overflow:"hidden", position:"relative"
       }}>
 
         {/* TOP NAV */}
-        <div style={{background:"#1a2840",borderBottom:"1px solid rgba(122,178,212,0.15)",padding:mobile?"10px 12px":"8px 20px",display:"flex",alignItems:"center",gap:10,flexShrink:0,zIndex:10}}>
+        <div style={{background:"#1a2840",borderBottom:"1px solid rgba(122,178,212,0.15)",padding:mobile?"10px 12px":"10px 20px",display:"flex",alignItems:"center",gap:12,flexShrink:0,zIndex:10}}>
+
+          {/* Meet Pete button */}
           <button
-            onClick={() => setDrawerOpen(true)}
-            style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,color:"#7ab2d4",cursor:"pointer",fontSize:18,flexShrink:0,
-              // FIX 7: min 44x44 touch targets throughout
-              minWidth:44,minHeight:44,display:"flex",alignItems:"center",justifyContent:"center"
-            }}>☰</button>
-          <img src="/pete.jpg" alt="Pete" style={{width:34,height:34,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <span style={{fontSize:mobile?13:14,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",whiteSpace:"nowrap"}}>Pete Matsoukas</span>
-              {!mobile && <><span style={{color:"#2a4a62"}}>·</span><span style={{fontSize:11,color:"#7ab2d4",fontWeight:600,whiteSpace:"nowrap"}}>IT Solutions Architect & MCT Trainer</span></>}
-              <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase"}}>● Live</span>
+            className="pete-btn"
+            onClick={() => setDrawerOpen(v => !v)}
+            style={{
+              display:"flex", alignItems:"center", gap:12,
+              background:"linear-gradient(135deg,rgba(122,178,212,0.12),rgba(14,165,233,0.08))",
+              border:"2px solid rgba(122,178,212,0.45)",
+              borderRadius:14, padding:mobile?"7px 14px 7px 7px":"8px 18px 8px 8px",
+              cursor:"pointer", flexShrink:0, transition:"all .2s",
+              minHeight:mobile?54:58,
+              boxShadow:"0 0 18px rgba(122,178,212,0.15),inset 0 1px 0 rgba(255,255,255,0.05)",
+            }}>
+            <div style={{position:"relative",flexShrink:0}}>
+              <img src="/pete.jpg" alt="Pete" style={{width:mobile?42:46,height:mobile?42:46,borderRadius:"50%",border:"2.5px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",display:"block",boxShadow:"0 0 14px rgba(122,178,212,0.4)"}}/>
+              <div style={{position:"absolute",inset:-4,borderRadius:"50%",border:"2px solid rgba(122,178,212,0.6)",animation:"pulse 2s infinite"}}/>
+              <div style={{position:"absolute",bottom:1,right:1,width:10,height:10,borderRadius:"50%",background:"#34d399",border:"2px solid #1a2840",boxShadow:"0 0 6px rgba(52,211,153,0.8)"}}/>
             </div>
+            <div style={{textAlign:"left"}}>
+              <div style={{fontSize:mobile?13:15,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",whiteSpace:"nowrap",lineHeight:1.2,letterSpacing:"0.02em"}}>Pete Matsoukas</div>
+              <div style={{fontSize:mobile?10.5:11,color:"#38bdf8",fontWeight:700,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5,marginTop:3}}>
+                <span style={{fontSize:11}}>👤</span>
+                <span style={{letterSpacing:"0.03em"}}>{mobile ? "Meet Pete" : "Tap to meet Pete"}</span>
+                <span style={{fontSize:10,background:"rgba(56,189,248,0.15)",border:"1px solid rgba(56,189,248,0.3)",borderRadius:4,padding:"0px 5px",marginLeft:2}}>{drawerOpen?"▲":"▼"}</span>
+              </div>
+            </div>
+          </button>
+
+          {/* Quote */}
+          <div style={{flex:1,minWidth:0}}>
             {!mobile && (
-              <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap"}}>
-                {[{l:"Azure",i:"☁️"},{l:"FinOps",i:"💰"},{l:"Zero Trust",i:"🔒"},{l:"On-Prem HA",i:"🖥️"},{l:"Hyper-V · VMware",i:"⚙️"},{l:"Cisco · Ubiquiti · Fortinet",i:"🔗"}].map(t=>(
-                  <span key={t.l} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.18)",color:"#7ab2d4",fontSize:10,padding:"2px 8px",borderRadius:20,fontWeight:600,whiteSpace:"nowrap"}}>
-                    <span>{t.i}</span><span>{t.l}</span>
-                  </span>
-                ))}
+              <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:"3px solid #0ea5e9",paddingLeft:14}}>
+                <div>
+                  <div style={{fontSize:13,color:"#e2e8f0",fontStyle:"italic",fontWeight:400,lineHeight:1.5,letterSpacing:"0.01em"}}>
+                    Technology should <strong style={{color:"#38bdf8",fontStyle:"normal",fontWeight:700}}>simplify</strong> your business, not <strong style={{color:"#38bdf8",fontStyle:"normal",fontWeight:700}}>complicate</strong> it.
+                  </div>
+                  <div style={{fontSize:10.5,color:"#4a6a82",marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:600}}>
+  IT Solutions Architect · MCT Trainer
+</div>
+                </div>
+              </div>
+            )}
+            {mobile && (
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{fontSize:13,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>TechByPete</span>
+                <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase"}}>● Live</span>
               </div>
             )}
           </div>
-          <button onClick={() => setShowContact(v => !v)} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:20,padding:mobile?"0 14px":"7px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",flexShrink:0,minHeight:44,minWidth:mobile?44:undefined}}>
-            <span>💬</span>{!mobile && " Contact Pete"}
+
+          {!mobile && (
+            <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:9,fontWeight:700,padding:"2px 9px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>● Live</span>
+          )}
+
+          <button onClick={() => setShowContact(v => !v)} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:20,padding:mobile?"0 12px":"7px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",flexShrink:0,minHeight:44,minWidth:mobile?44:undefined}}>
+            <span>💬</span>{!mobile&&" Contact Pete"}
           </button>
         </div>
 
         {/* MAIN */}
         <div style={{flex:1,display:"flex",overflow:"hidden",position:"relative"}}>
 
-          {/* FIX 8: overlay is fixed-position to cover full screen including nav bar */}
-          {mobile && drawerOpen && (
-            <div onClick={() => setDrawerOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:150,backdropFilter:"blur(2px)"}}/>
+          {drawerOpen && (
+            <div onClick={() => setDrawerOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:250,backdropFilter:"blur(2px)"}}/>
           )}
 
           {LeftPanel}
@@ -400,69 +397,70 @@ export default function App() {
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
 
             {!chatStarted ? (
-              <div style={{flex:1,overflowY:"auto",padding:mobile?"14px 12px":"20px 24px",WebkitOverflowScrolling:"touch"}}>
-                <div style={{maxWidth:"100%",margin:"0 auto"}}>
-                  <div style={{background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:12,padding:"14px 16px",marginBottom:16}}>
+              /* Cards view — no scroll, fills height */
+              <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",padding:mobile?"10px 12px":"12px 28px"}}>
+                <div style={{flex:1,display:"flex",flexDirection:"column",maxWidth:1200,margin:"0 auto",width:"100%"}}>
+
+                  {/* Intro banner */}
+                  <div style={{background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:10,padding:"10px 16px",marginBottom:10,flexShrink:0}}>
                     {activeTab === "projects" ? (
-                      <p style={{color:"#cbd5e1",fontSize:mobile?13.5:15,lineHeight:1.7,margin:0}}>
+                      <p style={{color:"#cbd5e1",fontSize:mobile?13:14,lineHeight:1.65,margin:0}}>
                         👋 Hi! Get a free <strong style={{color:"#38bdf8"}}>Assessment</strong>, <strong style={{color:"#38bdf8"}}>Solution Design</strong>, or <strong style={{color:"#38bdf8"}}>Statement of Work</strong> for your IT infrastructure, cloud, or security needs — backed by <strong style={{color:"#f1f5f9"}}>15+ years</strong> of hands-on expertise.
                       </p>
                     ) : (
-                      <p style={{color:"#cbd5e1",fontSize:mobile?13.5:15,lineHeight:1.7,margin:0}}>
+                      <p style={{color:"#cbd5e1",fontSize:mobile?13:14,lineHeight:1.65,margin:0}}>
                         🎓 Looking for <strong style={{color:"#38bdf8"}}>IT Training</strong> for your team? Pete is a certified <strong style={{color:"#f1f5f9"}}>Microsoft MCT</strong>, VMware VCP, Cisco CCNA and Fortinet FCP trainer. Available <strong style={{color:"#38bdf8"}}>on-site</strong>, <strong style={{color:"#38bdf8"}}>remote</strong>, or <strong style={{color:"#38bdf8"}}>blended</strong>.
                       </p>
                     )}
                   </div>
 
                   {/* Tabs */}
-                  <div style={{display:"flex",marginBottom:14,background:"#1a2840",borderRadius:10,padding:4,border:"1px solid rgba(122,178,212,0.15)"}}>
+                  <div style={{display:"flex",marginBottom:10,background:"#1a2840",borderRadius:10,padding:4,border:"1px solid rgba(122,178,212,0.15)",flexShrink:0}}>
                     {[{id:"projects",label:mobile?"🏗️ IT Projects":"🏗️ IT Projects & Solutions"},{id:"training",label:mobile?"🎓 Training":"🎓 Training & Courses"}].map(t=>(
-                      <button key={t.id} onClick={() => setActiveTab(t.id)} style={{flex:1,background:activeTab===t.id?"linear-gradient(135deg,#1a5a9a,#0ea5e9)":"transparent",border:"none",borderRadius:7,padding:mobile?"11px 6px":"11px 16px",color:activeTab===t.id?"#fff":"#4a6a82",fontSize:mobile?13:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s",minHeight:44}}>
+                      <button key={t.id} onClick={() => setActiveTab(t.id)} style={{flex:1,background:activeTab===t.id?"linear-gradient(135deg,#1a5a9a,#0ea5e9)":"transparent",border:"none",borderRadius:7,padding:mobile?"10px 6px":"10px 16px",color:activeTab===t.id?"#fff":"#4a6a82",fontSize:mobile?13:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s",minHeight:40}}>
                         {t.label}
                       </button>
                     ))}
                   </div>
 
+                  {/* Label */}
+                  <div style={{fontSize:10,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:8,flexShrink:0}}>
+                    {activeTab==="projects" ? "Select your IT challenge" : "Select a training course"}
+                  </div>
+
+                  {/* Project cards — fills remaining space */}
                   {activeTab === "projects" && (
-                    <>
-                      <div style={{fontSize:11,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:10}}>Select your IT challenge</div>
-                      {/* FIX 9: 2 columns on mobile for better use of screen space */}
-                      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"1fr 1fr 1fr",gap:mobile?10:12}}>
-                        {PROJECT_CARDS.map((c,i) => (
-                          <button key={i} className="card" onClick={() => send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:mobile?"13px 11px":"18px 20px",cursor:"pointer",textAlign:"left",transition:"all .15s",lineHeight:1.45,fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
-                            <div style={{fontSize:mobile?20:26,marginBottom:6}}>{c.icon}</div>
-                            <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?11.5:14,marginBottom:4,lineHeight:1.35}}>{c.q}</div>
-                            <div style={{color:"#4a6a82",fontSize:mobile?10.5:12.5,lineHeight:1.4}}>{c.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </>
+                    <div style={{flex:1,display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"1fr 1fr 1fr",gridTemplateRows:mobile?"repeat(6,1fr)":"repeat(4,1fr)",gap:mobile?8:10,minHeight:0}}>
+                      {PROJECT_CARDS.map((c,i) => (
+                        <button key={i} className="card" onClick={() => send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:10,padding:mobile?"10px":"14px 16px",cursor:"pointer",textAlign:"left",transition:"all .15s",lineHeight:1.4,fontFamily:"inherit",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                          <div style={{fontSize:mobile?18:22,marginBottom:4,flexShrink:0}}>{c.icon}</div>
+                          <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?11:13,marginBottom:3,lineHeight:1.3}}>{c.q}</div>
+                          <div style={{color:"#4a6a82",fontSize:mobile?10:11.5,lineHeight:1.35}}>{c.desc}</div>
+                        </button>
+                      ))}
+                    </div>
                   )}
 
+                  {/* Training cards — fills remaining space */}
                   {activeTab === "training" && (
-                    <>
-                      <div style={{fontSize:11,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:10}}>Select a training course</div>
-                      <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:12}}>
-                        {TRAINING_CARDS.map((c,i) => (
-                          <button key={i} className="card" onClick={() => send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"18px 20px",cursor:"pointer",textAlign:"left",transition:"all .15s",lineHeight:1.45,fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
-                            <div style={{fontSize:26,marginBottom:8}}>{c.icon}</div>
-                            <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?14:14,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
-                            <div style={{color:"#4a6a82",fontSize:mobile?13:12.5}}>{c.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                      <div style={{marginTop:14,background:"rgba(56,189,248,0.05)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:12,padding:"14px 16px"}}>
-                        <p style={{color:"#4a6a82",fontSize:13,lineHeight:1.65,margin:0}}>
-                          🎓 All courses delivered by <strong style={{color:"#38bdf8"}}>Pete Matsoukas</strong> — certified <strong style={{color:"#a8c8e0"}}>Microsoft MCT</strong>, VMware VCP, Cisco CCNA and Fortinet FCP trainer.
-                        </p>
-                      </div>
-                    </>
+                    <div style={{flex:1,display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gridTemplateRows:"repeat(2,1fr)",gap:10,minHeight:0}}>
+                      {TRAINING_CARDS.map((c,i) => (
+                        <button key={i} className="card" onClick={() => send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:10,padding:mobile?"14px":"20px 24px",cursor:"pointer",textAlign:"left",transition:"all .15s",lineHeight:1.4,fontFamily:"inherit",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center"}}>
+                          <div style={{fontSize:mobile?24:30,marginBottom:8,flexShrink:0}}>{c.icon}</div>
+                          <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?13:15,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
+                          <div style={{color:"#4a6a82",fontSize:mobile?12:13,lineHeight:1.4}}>{c.desc}</div>
+                          <div style={{marginTop:8,fontSize:10.5,color:"#2a4a62",fontStyle:"italic"}}>🎓 Delivered by certified MCT · Pete Matsoukas</div>
+                        </button>
+                      ))}
+                    </div>
                   )}
+
                 </div>
               </div>
             ) : (
-              <div style={{flex:1,overflowY:"auto",padding:mobile?"12px":"20px 24px",WebkitOverflowScrolling:"touch"}}>
-                <div style={{maxWidth:"100%",margin:"0 auto"}}>
+              /* Chat view */
+              <div style={{flex:1,overflowY:"auto",padding:mobile?"12px":"20px 28px",WebkitOverflowScrolling:"touch"}}>
+                <div style={{maxWidth:960,margin:"0 auto"}}>
                   <button onClick={() => setChatStarted(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,color:"#7ab2d4",fontSize:13,fontWeight:600,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",marginBottom:14,minHeight:40}}>← Back to topics</button>
                   {msgs.map((msg, idx) => {
                     const isUser = msg.role === "user";
@@ -488,16 +486,8 @@ export default function App() {
             )}
 
             {/* INPUT BAR */}
-            <div style={{
-              borderTop:"2px solid rgba(122,178,212,0.3)",
-              background:"linear-gradient(180deg,#1a2840 0%,#0f1e35 100%)",
-              padding:mobile?"10px 12px":"12px 24px 18px",
-              // FIX 10: safe-area-inset-bottom for iPhone home bar
-              paddingBottom:`max(${mobile?"10px":"18px"}, env(safe-area-inset-bottom, 0px))`,
-              flexShrink:0
-            }}>
-              <div style={{maxWidth:"100%",margin:"0 auto"}}>
-                {/* Session tabs with horizontal scroll */}
+            <div style={{borderTop:"2px solid rgba(122,178,212,0.3)",background:"linear-gradient(180deg,#1a2840 0%,#0f1e35 100%)",padding:mobile?"10px 12px":"12px 28px 18px",paddingBottom:`max(${mobile?"10px":"18px"}, env(safe-area-inset-bottom, 0px))`,flexShrink:0}}>
+              <div style={{maxWidth:1200,margin:"0 auto"}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8,overflowX:"auto",WebkitOverflowScrolling:"touch",msOverflowStyle:"none",scrollbarWidth:"none"}}>
                   <button onClick={newChat} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,padding:"0 12px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,boxShadow:"0 0 10px rgba(14,165,233,0.3)",flexShrink:0,whiteSpace:"nowrap",minHeight:36,minWidth:64}}>
                     <span>✏️</span> New
@@ -510,37 +500,18 @@ export default function App() {
                     </div>
                   ))}
                 </div>
-
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
                   <div style={{width:6,height:6,borderRadius:"50%",background:"#38bdf8",boxShadow:"0 0 8px rgba(56,189,248,0.8)",animation:"bounce 2s infinite",flexShrink:0}}/>
                   <div style={{fontSize:11.5,color:"#38bdf8",fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif"}}>
                     {!chatStarted && activeTab === "training" ? "Ask about a training course" : "Describe your IT challenge"}
                   </div>
                 </div>
-
                 <div style={{display:"flex",gap:10,alignItems:"flex-end",background:"#0a1525",border:"2px solid #38bdf8",borderRadius:mobile?14:16,padding:mobile?"10px 12px":"14px 18px",boxShadow:"0 0 24px rgba(56,189,248,0.15)"}}>
-                  <textarea
-                    ref={taRef}
-                    value={input}
-                    onChange={onTa}
-                    onKeyDown={onKey}
-                    placeholder={!chatStarted && activeTab === "training"
-                      ? "e.g. We need AZ-104 training for 10 engineers…"
-                      : "e.g. We need to migrate our servers to Azure…"}
-                    rows={mobile ? 1 : 2}
-                    style={{
-                      flex:1, background:"transparent", border:"none", color:"#e2e8f0",
-                      // FIX 11: 16px font on mobile prevents iOS auto-zoom on focus
-                      fontSize: mobile ? 16 : 14.5,
-                      lineHeight:1.7, fontFamily:"inherit",
-                      minHeight: mobile ? 40 : 48, maxHeight:120
-                    }}
-                  />
-                  {/* FIX 12: 48x48 min touch target on mobile send button */}
-                  <button
-                    className="sbtn"
-                    onClick={() => send()}
-                    disabled={!input.trim() || loading}
+                  <textarea ref={taRef} value={input} onChange={onTa} onKeyDown={onKey}
+                    placeholder={!chatStarted && activeTab==="training" ? "e.g. We need AZ-104 training for 10 engineers…" : "e.g. We need to migrate our servers to Azure…"}
+                    rows={mobile?1:2}
+                    style={{flex:1,background:"transparent",border:"none",color:"#e2e8f0",fontSize:mobile?16:14.5,lineHeight:1.7,fontFamily:"inherit",minHeight:mobile?40:48,maxHeight:120}}/>
+                  <button className="sbtn" onClick={() => send()} disabled={!input.trim()||loading}
                     style={{background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,width:mobile?48:46,height:mobile?48:46,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"#fff",transition:"all .15s",boxShadow:"0 0 20px rgba(14,165,233,0.5)"}}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   </button>
