@@ -40,30 +40,42 @@ function uid(){return Math.random().toString(36).slice(2,9);}
 
 function ContactCard({onClose}){
   return(
-    <div style={{position:"fixed",bottom:80,right:24,zIndex:1000,background:"#1e2e42",border:"1px solid rgba(122,178,212,0.3)",borderRadius:16,padding:"20px 24px",width:290,boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-        <span style={{fontSize:13,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.05em",textTransform:"uppercase"}}>Get in Touch</span>
-        <button onClick={onClose} style={{background:"none",border:"none",color:"#4a6a82",cursor:"pointer",fontSize:18,padding:0,lineHeight:1}}>×</button>
+    <div style={{position:"fixed",bottom:90,right:28,zIndex:1000,background:"#0f1e35",border:"2px solid rgba(122,178,212,0.4)",borderRadius:20,padding:"24px 24px 20px",width:320,boxShadow:"0 12px 48px rgba(0,0,0,0.6), 0 0 32px rgba(56,189,248,0.1)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+        <span style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.08em",textTransform:"uppercase"}}>Get in Touch</span>
+        <button onClick={onClose} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",fontSize:16,width:28,height:28,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>×</button>
       </div>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        {[
-          {href:"mailto:"+CONTACT.email,icon:"✉️",label:"Email",val:CONTACT.email},
-          {href:"tel:"+CONTACT.phone,icon:"📞",label:"Phone / WhatsApp",val:CONTACT.phone},
-        ].map((c,i)=>(
-          <a key={i} href={c.href} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"10px 14px",textDecoration:"none"}}>
-            <span style={{fontSize:16}}>{c.icon}</span>
-            <div><div style={{fontSize:10,color:"#4a6a82",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>{c.label}</div>
-            <div style={{fontSize:12,color:"#7ab2d4",fontWeight:600}}>{c.val}</div></div>
-          </a>
-        ))}
-        <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:10,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"10px 14px",textDecoration:"none"}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-          <div><div style={{fontSize:10,color:"#4a6a82",fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase"}}>LinkedIn</div>
-          <div style={{fontSize:12,color:"#7ab2d4",fontWeight:600}}>View Full Profile & CV</div></div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        <a href={"mailto:"+CONTACT.email} style={{display:"flex",alignItems:"center",gap:14,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:12,padding:"14px 16px",textDecoration:"none",transition:"all .2s"}}
+          onMouseOver={e=>e.currentTarget.style.background="rgba(122,178,212,0.16)"}
+          onMouseOut={e=>e.currentTarget.style.background="rgba(122,178,212,0.08)"}>
+          <span style={{fontSize:22}}>✉️</span>
+          <div>
+            <div style={{fontSize:11,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Email</div>
+            <div style={{fontSize:14,color:"#7ab2d4",fontWeight:700}}>{CONTACT.email}</div>
+          </div>
+        </a>
+        <a href={"tel:"+CONTACT.phone} style={{display:"flex",alignItems:"center",gap:14,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:12,padding:"14px 16px",textDecoration:"none",transition:"all .2s"}}
+          onMouseOver={e=>e.currentTarget.style.background="rgba(122,178,212,0.16)"}
+          onMouseOut={e=>e.currentTarget.style.background="rgba(122,178,212,0.08)"}>
+          <span style={{fontSize:22}}>📞</span>
+          <div>
+            <div style={{fontSize:11,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Phone / WhatsApp</div>
+            <div style={{fontSize:14,color:"#7ab2d4",fontWeight:700}}>{CONTACT.phone}</div>
+          </div>
+        </a>
+        <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:14,background:"rgba(0,119,181,0.1)",border:"1px solid rgba(0,119,181,0.3)",borderRadius:12,padding:"14px 16px",textDecoration:"none",transition:"all .2s"}}
+          onMouseOver={e=>e.currentTarget.style.background="rgba(0,119,181,0.2)"}
+          onMouseOut={e=>e.currentTarget.style.background="rgba(0,119,181,0.1)"}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          <div>
+            <div style={{fontSize:11,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>LinkedIn</div>
+            <div style={{fontSize:14,color:"#0ea5e9",fontWeight:700}}>View Full Profile & CV</div>
+          </div>
         </a>
       </div>
-      <div style={{marginTop:12,padding:"10px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.15)",borderRadius:10,textAlign:"center"}}>
-        <p style={{fontSize:11.5,color:"#4a6a82",margin:0,lineHeight:1.5}}>📅 Mention <strong style={{color:"#38bdf8"}}>Teams call</strong> in your email and I will send you a meeting invite</p>
+      <div style={{marginTop:14,padding:"13px 16px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:12,textAlign:"center"}}>
+        <p style={{fontSize:13,color:"#7ab2d4",margin:0,lineHeight:1.6}}>📅 Mention <strong style={{color:"#38bdf8"}}>Teams call</strong> in your email and I will send you a meeting invite</p>
       </div>
     </div>
   );
@@ -183,26 +195,19 @@ export default function App(){
         <div style={{flex:1,display:"flex",overflow:"hidden"}}>
 
           {/* LEFT PANEL */}
-          <div style={{width:280,background:"#1a2840",borderRight:"1px solid rgba(122,178,212,0.12)",display:"flex",flexDirection:"column",flexShrink:0,overflowY:"auto"}}>
-
-            {/* New Chat button — top of sidebar */}
-            <div style={{padding:"12px 14px",borderBottom:"1px solid rgba(122,178,212,0.15)",background:"#162032"}}>
-              <button className="newchat" onClick={newChat} style={{width:"100%",background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:10,color:"#fff",fontSize:13,fontWeight:700,padding:"10px 0",cursor:"pointer",fontFamily:"inherit",transition:"all .15s",display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:"0 0 12px rgba(14,165,233,0.25)"}}>
-                <span style={{fontSize:16}}>✏️</span> Start New Conversation
-              </button>
-            </div>
+          <div style={{width:240,background:"#1a2840",borderRight:"1px solid rgba(122,178,212,0.12)",display:"flex",flexDirection:"column",flexShrink:0,overflowY:"auto"}}>
 
             {/* Profile */}
-            <div style={{padding:"20px 18px 16px",borderBottom:"1px solid rgba(122,178,212,0.1)",textAlign:"center"}}>
-              <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:80,height:80,borderRadius:"50%",border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",margin:"0 auto 12px",display:"block",boxShadow:"0 0 20px rgba(122,178,212,0.2)"}}/>
-              <div style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>Pete Matsoukas</div>
-              <div style={{fontSize:12.5,color:"#7ab2d4",fontWeight:600,marginTop:3}}>IT Solutions Architect & MCT Trainer</div>
-              <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:6}}>
-                <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:7,fontSize:12.5,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>🌐 techbypete.com</a>
-                <a href={"mailto:"+CONTACT.email} style={{display:"flex",alignItems:"center",gap:7,fontSize:12,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>✉️ {CONTACT.email}</a>
-                <a href={"tel:"+CONTACT.phone} style={{display:"flex",alignItems:"center",gap:7,fontSize:12.5,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>📞 {CONTACT.phone}</a>
-                <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:7,fontSize:12.5,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+            <div style={{padding:"24px 20px 20px",borderBottom:"1px solid rgba(122,178,212,0.1)",textAlign:"center"}}>
+              <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:100,height:100,borderRadius:"50%",border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",margin:"0 auto 14px",display:"block",boxShadow:"0 0 24px rgba(122,178,212,0.25)"}}/>
+              <div style={{fontSize:18,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>Pete Matsoukas</div>
+              <div style={{fontSize:13.5,color:"#7ab2d4",fontWeight:600,marginTop:4}}>IT Solutions Architect & MCT Trainer</div>
+              <div style={{marginTop:14,display:"flex",flexDirection:"column",gap:8}}>
+                <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>🌐 techbypete.com</a>
+                <a href={"mailto:"+CONTACT.email} style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>✉️ {CONTACT.email}</a>
+                <a href={"tel:"+CONTACT.phone} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>📞 {CONTACT.phone}</a>
+                <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                   LinkedIn Profile & CV
                 </a>
               </div>
@@ -241,7 +246,7 @@ export default function App(){
             </div>
 
             {/* Certifications */}
-            <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(122,178,212,0.1)"}}>
+            <div style={{padding:"14px 16px",flex:1}}>
               <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Certifications</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                 {CERTS.map((c,i)=>(
@@ -269,8 +274,8 @@ export default function App(){
           {/* RIGHT PANEL */}
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {!chatStarted ? (
-              <div style={{flex:1,overflowY:"auto",padding:"24px"}}>
-                <div style={{maxWidth:760,margin:"0 auto"}}>
+              <div style={{flex:1,overflowY:"auto",padding:"20px 24px"}}>
+                <div style={{maxWidth:"100%",margin:"0 auto",padding:"0 8px"}}>
                   <div style={{background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:12,padding:"16px 20px",marginBottom:20}}>
                     {activeTab==="projects" ? (
                       <p style={{color:"#cbd5e1",fontSize:15,lineHeight:1.7,margin:0}}>
@@ -294,12 +299,12 @@ export default function App(){
                     {activeTab==="projects"&&(
                     <>
                       <div style={{fontSize:12,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:12}}>Select your IT challenge</div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
                         {PROJECT_CARDS.map((c,i)=>(
-                          <button key={i} className="card" onClick={()=>send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",transition:"all .2s",lineHeight:1.45,fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
+                          <button key={i} className="card" onClick={()=>send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"18px 20px",cursor:"pointer",textAlign:"left",transition:"all .2s",lineHeight:1.45,fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
                             <div style={{fontSize:26,marginBottom:8}}>{c.icon}</div>
-                            <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:14,marginBottom:4,lineHeight:1.35}}>{c.q}</div>
-                            <div style={{color:"#4a6a82",fontSize:12,fontWeight:400}}>{c.desc}</div>
+                            <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:14,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
+                            <div style={{color:"#4a6a82",fontSize:12.5,fontWeight:400}}>{c.desc}</div>
                           </button>
                         ))}
                       </div>
@@ -309,12 +314,12 @@ export default function App(){
                   {activeTab==="training"&&(
                     <>
                       <div style={{fontSize:12,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:12}}>Select a training course</div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                         {TRAINING_CARDS.map((c,i)=>(
-                          <button key={i} className="card" onClick={()=>send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"16px 18px",cursor:"pointer",textAlign:"left",transition:"all .2s",lineHeight:1.45,fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
+                          <button key={i} className="card" onClick={()=>send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"18px 20px",cursor:"pointer",textAlign:"left",transition:"all .2s",lineHeight:1.45,fontFamily:"inherit",boxShadow:"0 2px 8px rgba(0,0,0,0.15)"}}>
                             <div style={{fontSize:26,marginBottom:8}}>{c.icon}</div>
-                            <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:14,marginBottom:4,lineHeight:1.35}}>{c.q}</div>
-                            <div style={{color:"#4a6a82",fontSize:12,fontWeight:400}}>{c.desc}</div>
+                            <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:14,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
+                            <div style={{color:"#4a6a82",fontSize:12.5,fontWeight:400}}>{c.desc}</div>
                           </button>
                         ))}
                       </div>
