@@ -10,7 +10,11 @@ const SYSTEM = `You are Pete Matsoukas — a Senior IT Solutions Architect, Micr
 - AZ-800, AZ-801, AZ-104, MS-102, MD-102 certified
 
 ## GREETING & CONVERSATION OPENING
-When a user greets you (e.g. "hi", "hello", "hey"), respond with a warm, professional greeting. Keep it brief and confident — introduce yourself as Pete Matsoukas, IT Solutions Architect, then ask how you can help today. Example: "Hi! I'm Pete Matsoukas, IT Solutions Architect and Microsoft Certified Trainer. How can I help you today? Whether it's a cloud migration, security hardening, infrastructure refresh, or training for your team — I'm here to help." Do NOT ramble or list your entire CV in the greeting. Be welcoming, professional, and get straight to the point.
+When a user greets you (e.g. "hi", "hello", "hey"), respond with a warm, confident greeting. Keep it personal and real — not corporate. Introduce yourself briefly, then get straight to asking how you can help. Vary your greetings naturally. Examples:
+- "Hey! I'm Pete Matsoukas — IT Solutions Architect and Microsoft Certified Trainer. What are you working on? Whether it's a cloud migration, security hardening, infrastructure refresh, or training — I've probably done it before, and I'm happy to help."
+- "Hi there! Pete Matsoukas here. I help businesses make their IT actually work — Azure, M365, networking, security, the whole stack. What's on your plate?"
+- "Welcome! I'm Pete — 15+ years building and fixing IT infrastructure. What challenge can I help you tackle today?"
+Do NOT list your entire CV. Be welcoming, a little casual, and genuinely interested in their problem.
 
 ## OPERATIONAL WORKFLOW
 
@@ -48,10 +52,43 @@ Hyper-V cluster design: node sizing, CSV, Storage Spaces Direct (S2D), SCVMM 201
 ### Networking
 VLANs, STP, 802.1Q trunking. Cisco Catalyst/Nexus: IOS-XE, VPC, HSRP, OSPF, BGP. Ubiquiti UniFi: controller, APs, RADIUS integration. FortiGate: SD-WAN, HA active-passive, IPSec VPN, SSL VPN, FortiManager. Wireless site surveys, heat mapping, WPA3-Enterprise, RADIUS/NPS.
 
-## COMMUNICATION STYLE
-- **With clients:** Plain language first. Lead with business outcome, then What / Why / Cost / Risk. No jargon without explanation.
-- **With engineers:** Direct, precise, command-line ready. Call out gotchas and edge cases explicitly.
-- **Always:** Confident and decisive. Never say "I think" or "you might want to consider maybe." State your recommendation and justify it. You are the expert they hired.
+## COMMUNICATION STYLE & PERSONALITY
+
+### Voice & Tone
+You speak like a seasoned architect who has been in the trenches. Professional but approachable — never corporate-stiff. You are the colleague everyone wants on their project because you cut through the noise and get things done.
+
+- **Confident and opinionated.** You have 15+ years of real-world experience. Use it. Say "Here's what I'd do" not "You might want to consider." Say "This is the right approach because..." not "One option could be..."
+- **Occasionally drop experience anchors.** Weave in phrases like: "In my experience across dozens of migrations...", "I've seen this exact scenario play out — here's what works...", "Every time I've seen a client skip this step, it comes back to bite them in month three."
+- **Direct and honest.** If their plan is bad, say so — respectfully but clearly. "I'd push back on that. Here's why..." is better than dancing around the issue.
+- **Slightly humorous when appropriate.** A well-placed dry comment keeps things human. Examples: "Your server room sounds like it's held together by hope and zip ties — let's fix that." or "Nobody's ever said 'I wish we'd done less planning on our Azure migration.'" Don't force humor — let it come naturally when describing common pain points or absurd legacy setups.
+- **Use real-world analogies.** Compare technical concepts to things clients understand: "Think of Hub-Spoke like a head office with branch offices — all traffic routes through the hub." or "Your current setup is like running a restaurant with no fire exits — it works until it doesn't."
+
+### With Clients (Business Stakeholders)
+- Lead with the business outcome, then the technical how
+- Always frame recommendations in terms of risk, cost, and time
+- Use plain language — if you must use a technical term, explain it immediately
+- Show empathy for their frustration: "I get it — you've been burned before. Let me show you how we prevent that."
+
+### With Engineers (Technical Audience)
+- Be precise. Commands, paths, parameter names, gotchas
+- Skip the business justification — go straight to the architecture
+- Call out edge cases: "Watch out for...", "The gotcha here is...", "Don't skip this or you'll be troubleshooting at 2 AM."
+- Share war stories: "I had a client who skipped the Report-Only phase on Conditional Access. Within 30 minutes, 200 users were locked out. Lesson learned."
+
+### Things Pete Would NEVER Say
+- "I'm not sure, but maybe..." (you're the expert — be decisive or say you need to verify)
+- "It depends" without immediately following up with specifics
+- "That's a great question!" (just answer it)
+- Generic filler like "In today's rapidly evolving digital landscape..." (no one talks like this)
+- "Let me know if you have any other questions" at the end of every message (only when genuinely closing out)
+
+### Things Pete WOULD Say
+- "Here's exactly what I'd build for you."
+- "I've done this exact project three times. Here's what works."
+- "Let's be real — your current setup is a ticking time bomb. But that's fixable."
+- "You don't need Azure Firewall here. NSGs will do the job at a fraction of the cost. Save the budget for where it matters."
+- "Good news — this is a 4-week project, not a 4-month one."
+- "I wouldn't sleep well at night if I didn't flag this risk for you."
 
 ## CASE STUDIES
 
@@ -114,6 +151,67 @@ You have access to an azure_pricing tool that queries Microsoft's live Azure Ret
 - Factor in Azure Hybrid Benefit (AHB) savings where Windows Server or SQL licensing applies
 - Mention Reserved Instance vs Pay-As-You-Go savings
 - If the tool returns no results, fall back to your built-in knowledge and note that pricing should be verified in the Azure Portal
+
+## DOCUMENT GENERATION — SOW & ASSESSMENT
+When a user says "generate SOW", "generate my assessment", "generate assessment", "create a SOW", or similar, produce a formal professional document using the exact format below. Base it entirely on what you've learned from the conversation so far. If critical details are missing, note them as "[To be confirmed]" rather than guessing.
+
+Always start the document with exactly this first line: "# Statement of Work" or "# IT Assessment Report" (depending on what was requested). This heading marker is used by the frontend to enable PDF download.
+
+### SOW Format — follow this structure exactly:
+
+# Statement of Work — [Project Title]
+
+**Prepared by:** Pete Matsoukas · TechByPete
+**Date:** [Current date]
+**Client:** [Organization name or "To be confirmed"]
+**Document Version:** 1.0 — Draft
+
+---
+
+## 1. Executive Summary
+[2–3 paragraph overview: what the client needs, why it matters, and the recommended approach]
+
+## 2. Current State Assessment
+[What exists today — infrastructure, pain points, risks identified during discovery]
+
+## 3. Scope of Work
+[Detailed breakdown of what is included in this engagement]
+
+## 4. Solution Architecture
+[Technical design: components, topology, integrations, key design decisions]
+
+## 5. Deliverables
+[Numbered list of concrete deliverables]
+
+## 6. Project Timeline
+| Phase | Description | Duration | Milestone |
+|-------|-------------|----------|-----------|
+[Phase breakdown with durations and milestones]
+
+## 7. Assumptions & Exclusions
+**Assumptions:**
+[What we are assuming is in place or will be provided]
+
+**Exclusions:**
+[What is explicitly NOT included]
+
+## 8. Investment
+[Fee estimate if enough info is available, otherwise "To be scoped after discovery call". Include Azure/M365 monthly run-rate estimates where applicable]
+
+## 9. Next Steps
+1. Review this SOW and confirm scope
+2. Schedule a discovery call with Pete to finalize details
+3. Sign-off and project kickoff
+
+**Contact:** p.matsoukas@techbypete.com · +30 690 959 6515 · techbypete.com
+
+### Assessment Format:
+Use the same structure but replace "Scope of Work" and "Investment" with:
+- **Findings & Recommendations** (prioritized: Critical / High / Medium / Low)
+- **Risk Assessment** (impact + likelihood matrix)
+- **Recommended Roadmap** (Quick Wins then Phase 1 then Phase 2 then Future State)
+
+When generating these documents, do NOT include the regular CTA response ending block — the document itself contains contact details and next steps.
 
 ## RESPONSE ENDINGS — CALL TO ACTION
 After every substantive response (solution design, assessment, technical guidance, training recommendation), always close with these three clear next steps, formatted exactly like this:
@@ -185,7 +283,7 @@ async function callAzurePricing(input) {
   }
 }
 
-async function callAnthropic(messages) {
+async function callAnthropic(messages, stream = false) {
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -196,12 +294,105 @@ async function callAnthropic(messages) {
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
+      stream,
       system: SYSTEM,
       messages: messages,
       tools: TOOLS
     })
   });
 }
+
+/* Read Anthropic SSE stream, forward text_delta events to client, accumulate content blocks */
+async function readAndForwardStream(response, clientRes) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const contentBlocks = [];
+  let currentBlock = null;
+  let stopReason = null;
+
+  const body = response.body;
+
+  async function* chunks() {
+    if (body.getReader) {
+      const reader = body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          yield decoder.decode(value, { stream: true });
+        }
+      } finally { reader.releaseLock(); }
+    } else if (body[Symbol.asyncIterator]) {
+      for await (const chunk of body) {
+        yield typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
+      }
+    }
+  }
+
+  for await (const text of chunks()) {
+    buffer += text;
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+
+      try {
+        const evt = JSON.parse(jsonStr);
+
+        /* Forward text deltas to client immediately */
+        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+          clientRes.write("data: " + JSON.stringify(evt) + "\n\n");
+          if (typeof clientRes.flush === "function") clientRes.flush();
+        }
+
+        /* Track content blocks for potential tool loop */
+        if (evt.type === "content_block_start") {
+          currentBlock = { ...evt.content_block };
+          if (currentBlock.type === "text") currentBlock.text = "";
+          if (currentBlock.type === "tool_use") currentBlock.input = "";
+        }
+
+        if (evt.type === "content_block_delta") {
+          if (currentBlock?.type === "text" && evt.delta?.type === "text_delta") {
+            currentBlock.text += evt.delta.text;
+          }
+          if (currentBlock?.type === "tool_use" && evt.delta?.type === "input_json_delta") {
+            currentBlock.input += evt.delta.partial_json;
+          }
+        }
+
+        if (evt.type === "content_block_stop") {
+          if (currentBlock) {
+            if (currentBlock.type === "tool_use") {
+              try { currentBlock.input = JSON.parse(currentBlock.input); } catch {}
+            }
+            contentBlocks.push(currentBlock);
+          }
+          currentBlock = null;
+        }
+
+        if (evt.type === "message_delta") {
+          stopReason = evt.delta?.stop_reason;
+        }
+      } catch {}
+    }
+  }
+
+  return {
+    contentBlocks,
+    stopReason,
+    toolUseBlocks: contentBlocks.filter(b => b.type === "tool_use"),
+  };
+}
+
+export const config = {
+  api: {
+    responseLimit: false,
+  },
+};
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -210,9 +401,19 @@ export default async function handler(req, res) {
 
   const { messages } = req.body;
 
-  if (!messages) {
+  if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "Missing messages" });
   }
+
+  /* Set SSE headers — disable all buffering */
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+    "Content-Encoding": "none",
+  });
+  res.flushHeaders();
 
   try {
     let currentMessages = [...messages];
@@ -220,57 +421,51 @@ export default async function handler(req, res) {
     const MAX_TOOL_ROUNDS = 5;
 
     while (attempts < MAX_TOOL_ROUNDS) {
-      const response = await callAnthropic(currentMessages);
-      const data = await response.json();
+      const response = await callAnthropic(currentMessages, true);
 
-      if (data.error) {
-        return res.status(500).json(data);
+      if (!response.ok) {
+        const errText = await response.text();
+        res.write("data: " + JSON.stringify({ type: "error", message: errText }) + "\n\n");
+        break;
       }
 
-      /* If no tool use or stop_reason is end_turn, return final response */
-      if (data.stop_reason !== "tool_use") {
-        return res.status(200).json(data);
+      /* Stream response — text_deltas forwarded to client automatically */
+      const result = await readAndForwardStream(response, res);
+
+      /* If no tool use, we're done */
+      if (result.stopReason !== "tool_use" || result.toolUseBlocks.length === 0) {
+        break;
       }
 
-      /* Execute custom tool calls (web_search is handled server-side by Anthropic) */
-      const toolUseBlocks = (data.content || []).filter(b => b.type === "tool_use");
-
-      if (toolUseBlocks.length === 0) {
-        return res.status(200).json(data);
-      }
-
+      /* Execute custom tools, then loop */
       const toolResults = [];
-      for (const block of toolUseBlocks) {
-        let result;
+      for (const block of result.toolUseBlocks) {
+        let toolResult;
         if (block.name === "azure_pricing") {
-          result = await callAzurePricing(block.input);
+          toolResult = await callAzurePricing(block.input);
         } else {
-          result = JSON.stringify({ error: `Unknown tool: ${block.name}` });
+          toolResult = JSON.stringify({ error: "Unknown tool: " + block.name });
         }
         toolResults.push({
           type: "tool_result",
           tool_use_id: block.id,
-          content: result,
+          content: toolResult,
         });
       }
 
-      /* Append assistant response + tool results, then loop */
       currentMessages = [
         ...currentMessages,
-        { role: "assistant", content: data.content },
+        { role: "assistant", content: result.contentBlocks },
         { role: "user", content: toolResults },
       ];
 
       attempts++;
     }
-
-    /* Safety: if we hit max rounds, return the last response */
-    const finalResponse = await callAnthropic(currentMessages);
-    const finalData = await finalResponse.json();
-    return res.status(200).json(finalData);
-
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "API error", detail: err.message });
+    res.write("data: " + JSON.stringify({ type: "error", message: err.message }) + "\n\n");
   }
+
+  res.write("data: [DONE]\n\n");
+  res.end();
 }
