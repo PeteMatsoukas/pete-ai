@@ -1001,6 +1001,11 @@ export default function App() {
               <div style={{flex:1,overflowY:"auto",padding:mobile?"12px":"20px 28px",WebkitOverflowScrolling:"touch"}}>
                 <div style={{maxWidth:960,margin:"0 auto"}}>
                   <button onClick={() => setChatStarted(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,color:"#7ab2d4",fontSize:13,fontWeight:600,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",marginBottom:14,minHeight:40}}>← Back to topics</button>
+                  {/* Mode indicator */}
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:activeTab==="training"?"rgba(16,124,16,0.08)":"rgba(0,120,212,0.08)",border:activeTab==="training"?"1px solid rgba(52,211,153,0.2)":"1px solid rgba(56,189,248,0.2)",borderRadius:10,marginBottom:14,fontSize:12,fontWeight:600,color:activeTab==="training"?"#34d399":"#38bdf8"}}>
+                    {activeTab==="training" ? "🎓" : "🔧"} <strong>{activeTab==="training" ? "Training Mode Active" : "Projects & SOW Mode Active"}</strong>
+                    <span style={{color:"#4a6a82",fontWeight:400,fontSize:11}}> — {activeTab==="training" ? "Building your personalized learning path" : "Ready to scope and draft your Statement of Work"}</span>
+                  </div>
                   {msgs.map((msg, idx) => {
                     const isUser = msg.role === "user";
                     const displayContent = msg.display || (typeof msg.content === "string" ? msg.content : "");
@@ -1028,7 +1033,7 @@ export default function App() {
                             </button>
                           )}
                           {hasDocument && (
-                            <div style={{display:"flex",gap:8,marginTop:8}}>
+                            <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
                               <button
                                 onClick={() => { trackEvent("pdf_download"); openDocumentPrint(displayContent); }}
                                 className="sbtn"
@@ -1038,9 +1043,28 @@ export default function App() {
                                   border:"none",borderRadius:10,padding:"10px 14px",
                                   color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
                                   fontFamily:"inherit",boxShadow:"0 4px 16px rgba(14,165,233,0.3)",
-                                  justifyContent:"center",minHeight:44,
+                                  justifyContent:"center",minHeight:44,minWidth:0,
                                 }}>
-                                📄 Download PDF
+                                📄 PDF
+                              </button>
+                              <button
+                                onClick={() => {
+                                  trackEvent("markdown_export");
+                                  const blob = new Blob([displayContent], { type: "text/markdown" });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url; a.download = "TechByPete-Document.md"; a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                                className="sbtn"
+                                style={{
+                                  flex:1,display:"flex",alignItems:"center",gap:8,
+                                  background:"rgba(122,178,212,0.08)",
+                                  border:"1px solid rgba(122,178,212,0.25)",borderRadius:10,padding:"10px 14px",
+                                  color:"#7ab2d4",fontSize:12,fontWeight:700,cursor:"pointer",
+                                  fontFamily:"inherit",justifyContent:"center",minHeight:44,minWidth:0,
+                                }}>
+                                📝 Markdown
                               </button>
                               <button
                                 onClick={() => { setLeadDocContent(displayContent); setShowLeadCapture(true); }}
@@ -1050,9 +1074,9 @@ export default function App() {
                                   background:"rgba(52,211,153,0.1)",
                                   border:"2px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"10px 14px",
                                   color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",
-                                  fontFamily:"inherit",justifyContent:"center",minHeight:44,
+                                  fontFamily:"inherit",justifyContent:"center",minHeight:44,minWidth:0,
                                 }}>
-                                ✉️ Email me this
+                                ✉️ Email
                               </button>
                             </div>
                           )}
@@ -1071,13 +1095,38 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  {/* Loading dots — before stream starts */}
+                  {/* Loading — before stream starts */}
                   {loading && !streamingText && (
                     <div className="fin" style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:12}}>
                       <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0}}/>
-                      <div style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.12)",borderRadius:"14px 14px 14px 4px"}}><Dots/></div>
+                      <div style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.12)",borderRadius:"14px 14px 14px 4px",padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+                        <Dots/>
+                        <span style={{fontSize:12,color:"#4a6a82",fontWeight:500,whiteSpace:"nowrap"}}>Pete's AI Agent is thinking…</span>
+                      </div>
                     </div>
                   )}
+                  {/* Suggested reply buttons — shown after last assistant message when not loading */}
+                  {!loading && msgs.length > 0 && msgs[msgs.length - 1]?.role === "assistant" && (() => {
+                    const lastMsg = msgs[msgs.length - 1].display || msgs[msgs.length - 1].content || "";
+                    const isDoc = isDocumentResponse(lastMsg);
+                    const suggestions = isDoc
+                      ? ["Refine for cost optimization", "Refine for security emphasis", "Book a call with Pete"]
+                      : activeTab === "training"
+                        ? ["Adjust the pace", "Add more hands-on labs", "Generate full training plan"]
+                        : msgs.length >= 6
+                          ? ["Generate SOW", "Generate my assessment", "Book a call with Pete"]
+                          : ["Tell me more", "What are the risks?", "What would you recommend?"];
+                    return (
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,marginLeft:36}}>
+                        {suggestions.map((s, i) => (
+                          <button key={i} onClick={() => send(s)} className="sbtn"
+                            style={{background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:20,padding:"7px 14px",color:"#7ab2d4",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",whiteSpace:"nowrap"}}>
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <div ref={bottomRef}/>
                 </div>
               </div>
@@ -1181,13 +1230,13 @@ export default function App() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"0 2px"}}>
                     <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>TECHBYPETE.COM · AI AGENT · PRESS ENTER TO SEND</div>
                     <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",display:"flex",alignItems:"center",gap:4}}>
-                      <span>🔒</span> Your conversations are private and never used to train AI models
+                      <span>🔒</span> Conversations are encrypted, never used to train AI, and deleted after 30 days unless saved
                     </div>
                   </div>
                 )}
                 {mobile && (
                   <div style={{fontSize:9,color:"rgba(255,255,255,0.45)",textAlign:"center",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                    <span>🔒</span> Conversations are private · Never used to train AI
+                    <span>🔒</span> Encrypted · Private · Auto-deleted after 30 days
                   </div>
                 )}
               </div>
