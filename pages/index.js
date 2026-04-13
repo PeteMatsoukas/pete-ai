@@ -363,81 +363,122 @@ export default function App() {
 
   if (!mounted) return null;
 
-  const LeftPanel = (
-    <div style={{
-      width: 270, background: "#0f1928",
-      borderRight: "1px solid rgba(122,178,212,0.15)",
-      display: "flex", flexDirection: "column",
-      overflowY: "auto", WebkitOverflowScrolling: "touch",
-      position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 300,
-      transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
-      transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
-      boxShadow: drawerOpen ? "12px 0 48px rgba(0,0,0,0.8)" : "none",
-    }}>
-      <div style={{padding:"14px 16px 12px",borderBottom:"1px solid rgba(122,178,212,0.12)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0a1220",flexShrink:0}}>
-        <span style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.12em",textTransform:"uppercase"}}>About Pete</span>
-        <button onClick={() => setDrawerOpen(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>×</button>
-      </div>
-      <div style={{padding:"28px 20px 22px",borderBottom:"1px solid rgba(122,178,212,0.1)",textAlign:"center"}}>
-        <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:110,height:110,borderRadius:"50%",border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",margin:"0 auto 16px",display:"block",boxShadow:"0 0 28px rgba(122,178,212,0.3)"}}/>
-        <div style={{fontSize:19,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>Pete Matsoukas</div>
-        <div style={{fontSize:13,color:"#7ab2d4",fontWeight:600,marginTop:5,lineHeight:1.4}}>IT Solutions Architect & MCT Trainer</div>
-        <div style={{marginTop:16,display:"flex",flexDirection:"column",gap:9}}>
-          <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>🌐 techbypete.com</a>
-          <a href={"mailto:"+CONTACT.email} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>✉️ {CONTACT.email}</a>
-          <a href={"tel:"+CONTACT.phone} style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>📞 {CONTACT.phone}</a>
-          <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"#4a6a82",textDecoration:"none",justifyContent:"center"}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-            LinkedIn Profile & CV
+  const PeteModal = drawerOpen ? (
+    <>
+      {/* Backdrop */}
+      <div onClick={() => setDrawerOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)",animation:"fadeIn 0.2s ease"}}/>
+      {/* Modal */}
+      <div style={{
+        position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,
+        width:mobile?"calc(100vw - 24px)":"min(660px, 90vw)",
+        maxHeight:mobile?"calc(100vh - 40px)":"85vh",
+        background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",
+        border:"2px solid rgba(122,178,212,0.35)",
+        borderRadius:20,
+        boxShadow:"0 24px 80px rgba(0,0,0,0.8),0 0 40px rgba(122,178,212,0.1)",
+        overflowY:"auto",WebkitOverflowScrolling:"touch",
+        animation:"fadeUp 0.25s ease",
+      }}>
+        {/* Header */}
+        <div style={{padding:mobile?"16px 16px 0":"24px 28px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.12em",textTransform:"uppercase"}}>Meet Pete Matsoukas</div>
+          <button onClick={() => setDrawerOpen(false)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>×</button>
+        </div>
+
+        {/* Profile area */}
+        <div style={{padding:mobile?"20px 16px":"24px 28px",display:"flex",flexDirection:mobile?"column":"row",gap:mobile?16:24,alignItems:mobile?"center":"flex-start"}}>
+          <div style={{flexShrink:0,textAlign:"center"}}>
+            <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" title="View LinkedIn Profile" style={{display:"block",cursor:"pointer"}}>
+              <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:mobile?110:130,height:mobile?110:130,borderRadius:16,border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",display:"block",boxShadow:"0 0 28px rgba(122,178,212,0.3)",transition:"transform .2s"}}/>
+            </a>
+            <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:10,fontSize:11,color:"#0ea5e9",textDecoration:"none",fontWeight:600}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+              LinkedIn
+            </a>
+          </div>
+          <div style={{textAlign:mobile?"center":"left",flex:1}}>
+            <div style={{fontSize:mobile?22:26,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",lineHeight:1.2}}>Pete Matsoukas</div>
+            <div style={{fontSize:14,color:"#38bdf8",fontWeight:600,marginTop:4}}>IT Solutions Architect & MCT Trainer</div>
+            <p style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.7,marginTop:12,margin:mobile?"12px 0 0":"12px 0 0"}}>
+              15+ years hands-on expertise in Microsoft Azure, Microsoft 365, infrastructure modernization, Zero Trust security, and cloud migrations.
+            </p>
+            <p style={{fontSize:13,color:"#64748b",lineHeight:1.65,marginTop:8}}>
+              I help mid-sized organizations simplify their IT — turning complex infrastructure, security, and cloud challenges into reliable, cost-effective solutions that just work.
+            </p>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{height:1,background:"rgba(122,178,212,0.12)",margin:mobile?"0 16px":"0 28px"}}/>
+
+        {/* About section */}
+        <div style={{padding:mobile?"20px 16px":"20px 28px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>About Pete</div>
+          <div style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.75}}>
+            <p style={{margin:"0 0 10px"}}>As a Microsoft Certified Trainer (MCT) and Solutions Architect, I've spent over 15 years designing and delivering IT projects for businesses that want technology to support growth — not slow it down.</p>
+            <p style={{margin:"0 0 10px"}}>Whether it's refreshing outdated server rooms, implementing proper Zero Trust security, migrating to Azure, or optimizing cloud spend, my approach is practical, vendor-neutral where it makes sense, and always focused on real business outcomes.</p>
+            <p style={{margin:0}}>I've helped organizations reduce complexity, strengthen security, and lower costs — all while making sure the solutions are maintainable long after the project ends.</p>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{height:1,background:"rgba(122,178,212,0.12)",margin:mobile?"0 16px":"0 28px"}}/>
+
+        {/* Credentials */}
+        <div style={{padding:mobile?"20px 16px":"20px 28px"}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Credentials & Quick Facts</div>
+          <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:8}}>
+            {[
+              {i:"🎓",t:"Microsoft Certified Trainer (MCT)"},
+              {i:"☁️",t:"Azure, M365, Entra ID, Intune, Defender"},
+              {i:"🔒",t:"Zero Trust & Disaster Recovery Specialist"},
+              {i:"🖥️",t:"5x VMware VCP · CCNA · Fortinet FCP"},
+              {i:"🏢",t:"Solutions Architect — Client Services Group"},
+              {i:"🌍",t:"Based in Greece · Serving clients globally"},
+            ].map((c,i) => (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.1)",borderRadius:10,padding:"10px 14px"}}>
+                <span style={{fontSize:16,flexShrink:0}}>{c.i}</span>
+                <span style={{fontSize:12.5,color:"#a8c8e0",fontWeight:500,lineHeight:1.4}}>{c.t}</span>
+              </div>
+            ))}
+          </div>
+          {/* Cert badges */}
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:12}}>
+            {CERTS.map((c,i) => (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#7ab2d4",whiteSpace:"nowrap"}}>
+                <span>{c.i}</span><span>{c.l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{height:1,background:"rgba(122,178,212,0.12)",margin:mobile?"0 16px":"0 28px"}}/>
+
+        {/* CTA buttons */}
+        <div style={{padding:mobile?"20px 16px 24px":"24px 28px 28px",display:"flex",flexDirection:"column",gap:10}}>
+          <a href={"mailto:"+CONTACT.email+"?subject=Book a 15-minute call with Pete"} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,padding:"14px 20px",color:"#fff",fontSize:14,fontWeight:700,textDecoration:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(14,165,233,0.4)",fontFamily:"inherit",minHeight:50}}>
+            📞 Book a 15-minute call with Pete
           </a>
+          <div style={{display:"flex",gap:10}}>
+            <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.08)",border:"2px solid rgba(122,178,212,0.3)",borderRadius:12,padding:"12px 16px",color:"#7ab2d4",fontSize:13,fontWeight:700,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
+              🌐 Visit TechByPete.com
+            </a>
+            <button onClick={() => setDrawerOpen(false)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.04)",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"12px 16px",color:"#4a6a82",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
+              💬 Continue chatting
+            </button>
+          </div>
         </div>
       </div>
-      <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(122,178,212,0.1)"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Credentials</div>
-        {[{m:"🥇",l:"Microsoft MCT"},{m:"🥈",l:"MCP Certified"},{m:"🥉",l:"5x VMware VCP"}].map((b,i) => (
-          <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.1)",borderRadius:8,padding:"8px 12px",marginBottom:5}}>
-            <span style={{fontSize:16}}>{b.m}</span>
-            <span style={{fontSize:13,fontWeight:600,color:"#a8c8e0"}}>{b.l}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{padding:"14px 16px",borderBottom:"1px solid rgba(122,178,212,0.1)"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Training Delivered</div>
-        {[
-          {i:"📘",l:"AZ-800 · AZ-801",d:"Windows Server Hybrid"},
-          {i:"📙",l:"AZ-104",d:"Azure Administrator"},
-          {i:"📕",l:"MS-102",d:"M365 Administrator"},
-          {i:"📒",l:"MD-102",d:"Intune & Endpoint"},
-          {i:"🔗",l:"CCNA R&S & Security",d:"Routing & Switching"},
-          {i:"🔵",l:"VMware VCP",d:"vSphere, vSAN, HA/DRS"},
-        ].map((c,i) => (
-          <div key={i} style={{display:"flex",alignItems:"center",gap:9,background:"rgba(122,178,212,0.04)",border:"1px solid rgba(122,178,212,0.08)",borderRadius:7,padding:"7px 12px",marginBottom:5}}>
-            <span style={{fontSize:14}}>{c.i}</span>
-            <div>
-              <div style={{fontSize:12,fontWeight:700,color:"#7ab2d4"}}>{c.l}</div>
-              <div style={{fontSize:11,color:"#3a5a72"}}>{c.d}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{padding:"14px 16px",flex:1}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:9}}>Certifications</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {CERTS.map((c,i) => (
-            <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#7ab2d4",whiteSpace:"nowrap"}}>
-              <span>{c.i}</span><span>{c.l}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+    </>
+  ) : null;
 
   return (
     <>
       <style>{`
         @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(122,178,212,0.4)}50%{box-shadow:0 0 0 6px rgba(122,178,212,0)}}
         *{box-sizing:border-box;margin:0;padding:0}
         html{height:100%;height:-webkit-fill-available}
@@ -527,12 +568,6 @@ export default function App() {
 
         {/* MAIN */}
         <div style={{flex:1,display:"flex",overflow:"hidden",position:"relative"}}>
-
-          {drawerOpen && (
-            <div onClick={() => setDrawerOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",zIndex:250,backdropFilter:"blur(2px)"}}/>
-          )}
-
-          {LeftPanel}
 
           {/* RIGHT PANEL */}
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
@@ -676,6 +711,7 @@ export default function App() {
         </div>
 
         {showContact && <ContactCard onClose={() => setShowContact(false)}/>}
+        {PeteModal}
       </div>
     </>
   );
