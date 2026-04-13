@@ -658,7 +658,7 @@ export default function App() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages })
+        body: JSON.stringify({ messages: apiMessages, mode: activeTab })
       });
 
       if (!response.ok) throw new Error("API " + response.status);
@@ -768,10 +768,10 @@ export default function App() {
           <div style={{textAlign:mobile?"center":"left",flex:1}}>
             <div style={{fontSize:mobile?22:26,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",lineHeight:1.2}}>Pete Matsoukas</div>
             <div style={{fontSize:14,color:"#38bdf8",fontWeight:600,marginTop:4}}>IT Solutions Architect & MCT Trainer</div>
-            <p style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.7,marginTop:12,margin:mobile?"12px 0 0":"12px 0 0"}}>
+            <p style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.7,marginTop:12}}>
               15+ years hands-on expertise in Microsoft Azure, Microsoft 365, infrastructure modernization, Zero Trust security, and cloud migrations.
             </p>
-            <p style={{fontSize:13,color:"#64748b",lineHeight:1.65,marginTop:8}}>
+            <p style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.7,marginTop:8}}>
               I help mid-sized organizations simplify their IT — turning complex infrastructure, security, and cloud challenges into reliable, cost-effective solutions that just work.
             </p>
           </div>
@@ -911,7 +911,7 @@ export default function App() {
               <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:"3px solid #0ea5e9",paddingLeft:14}}>
                 <div>
                   <div style={{fontSize:13,color:"#e2e8f0",fontStyle:"italic",fontWeight:400,lineHeight:1.5,letterSpacing:"0.01em"}}>
-                    Technology should <strong style={{color:"#38bdf8",fontStyle:"normal",fontWeight:700}}>simplify</strong> your business, not <strong style={{color:"#38bdf8",fontStyle:"normal",fontWeight:700}}>complicate</strong> it.
+                    Making complex IT effortless — so your business can focus on what matters.
                   </div>
                   <div style={{fontSize:10.5,color:"#4a6a82",marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:600}}>
                     IT Solutions Architect · MCT Trainer
@@ -1108,6 +1108,31 @@ export default function App() {
                   <div style={{fontSize:11.5,color:"#38bdf8",fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif"}}>
                     {!chatStarted && activeTab === "training" ? "Ask about a training course" : "Describe your IT challenge"}
                   </div>
+                </div>
+
+                {/* Quick action buttons */}
+                <div style={{display:"flex",gap:8,marginBottom:8}}>
+                  {activeTab === "projects" ? (
+                    <button
+                      onClick={() => { trackEvent("action_sow"); send("I'd like to scope a project and generate a Statement of Work. Let's start the discovery."); }}
+                      disabled={loading}
+                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"10px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,opacity:loading?0.5:1,boxShadow:"0 2px 12px rgba(14,165,233,0.3)"}}>
+                      📋 Generate SOW Outline
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { trackEvent("action_training"); send("I'd like to build a personalized training and certification plan. Let's start with my current role and goals."); }}
+                      disabled={loading}
+                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"linear-gradient(135deg,#107c10,#34d399)",border:"none",borderRadius:10,padding:"10px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,opacity:loading?0.5:1,boxShadow:"0 2px 12px rgba(52,211,153,0.3)"}}>
+                      🎯 Build My Training Plan
+                    </button>
+                  )}
+                  <a
+                    href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
+                    onClick={() => trackEvent("calendly_click", { source: "input_bar" })}
+                    style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:10,padding:"10px 14px",color:"#7ab2d4",fontSize:12,fontWeight:600,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:40,whiteSpace:"nowrap",flexShrink:0}}>
+                    📞 Book a call
+                  </a>
                 </div>
 
                 {/* File attachment chip */}
