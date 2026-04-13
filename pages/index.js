@@ -273,6 +273,16 @@ export default function App() {
     return n;
   });
 
+  const clearAllChats = () => {
+    if (!confirm("Delete all chat history? This cannot be undone.")) return;
+    try { localStorage.removeItem(STORAGE_KEY); localStorage.removeItem(ACTIVE_KEY); } catch {}
+    const id = uid();
+    setSessions([{ id, title: "New Chat", messages: [] }]);
+    setActiveId(id);
+    setChatStarted(false);
+    setInput("");
+  };
+
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -662,11 +672,16 @@ export default function App() {
                   <button onClick={newChat} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,padding:"0 12px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,boxShadow:"0 0 10px rgba(14,165,233,0.3)",flexShrink:0,whiteSpace:"nowrap",minHeight:36,minWidth:64}}>
                     <span>✏️</span> New
                   </button>
+                  {sessions.some(s => s.messages.length > 0) && (
+                    <button onClick={clearAllChats} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,color:"#ef4444",fontSize:11,fontWeight:600,padding:"0 10px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,flexShrink:0,whiteSpace:"nowrap",minHeight:36}}>
+                      🗑️ Clear all
+                    </button>
+                  )}
                   {sessions.map(s => (
                     <div key={s.id} className="chatitem" onClick={() => { setActiveId(s.id); setChatStarted(s.messages.length > 0); }} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:8,cursor:"pointer",background:s.id===activeId?"rgba(122,178,212,0.15)":"rgba(122,178,212,0.06)",border:s.id===activeId?"1px solid rgba(122,178,212,0.35)":"1px solid rgba(122,178,212,0.12)",transition:"all .15s",whiteSpace:"nowrap",flexShrink:0,minHeight:36}}>
                       <span style={{fontSize:12}}>💬</span>
                       <span style={{fontSize:12,color:s.id===activeId?"#7ab2d4":"#3a5a72",maxWidth:80,overflow:"hidden",textOverflow:"ellipsis"}}>{s.title}</span>
-                      <button onClick={e => { e.stopPropagation(); deleteChat(s.id); }} style={{background:"none",border:"none",color:"#2a4a62",cursor:"pointer",fontSize:15,padding:"0 0 0 2px",lineHeight:1,minWidth:20,minHeight:20}}>×</button>
+                      <button onClick={e => { e.stopPropagation(); deleteChat(s.id); }} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",color:"#ef4444",cursor:"pointer",fontSize:13,padding:"0",lineHeight:1,minWidth:22,minHeight:22,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
                     </div>
                   ))}
                 </div>
@@ -704,7 +719,19 @@ export default function App() {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   </button>
                 </div>
-                {!mobile && <div style={{fontSize:10,color:"#1a3a5c",textAlign:"center",marginTop:8,fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>TECHBYPETE.COM · AI AGENT · PRESS ENTER TO SEND</div>}
+                {!mobile && (
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"0 2px"}}>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>TECHBYPETE.COM · AI AGENT · PRESS ENTER TO SEND</div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",display:"flex",alignItems:"center",gap:4}}>
+                      <span>🔒</span> Your conversations are private and never used to train AI models
+                    </div>
+                  </div>
+                )}
+                {mobile && (
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.45)",textAlign:"center",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                    <span>🔒</span> Conversations are private · Never used to train AI
+                  </div>
+                )}
               </div>
             </div>
           </div>

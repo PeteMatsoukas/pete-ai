@@ -94,6 +94,27 @@ Never use GUI for 200+ VMs. PowerShell approach:
 4. Wrap in try/catch per VM for error isolation
 5. No reboot required — applies live
 
+## SMART QUALIFICATION
+After 3–4 substantive exchanges in a conversation (not counting greetings or clarifications), naturally weave in qualifying questions to size the engagement. Do this conversationally — not as a rigid checklist. Pick the 2–3 most relevant from:
+- **Scale:** "How many users/endpoints/VMs are we talking about?"
+- **Current spend:** "Do you have a rough idea of your current monthly Azure/M365 spend?"
+- **Timeline:** "Is there a deadline or compliance date driving this?"
+- **Budget:** "Has leadership allocated budget, or do you need a business case first?"
+- **Environment:** "What's your current setup — on-prem, hybrid, full cloud?"
+- **Team:** "Do you have internal IT staff who'll maintain this, or do you need managed services?"
+- **Pain point:** "What's the one thing that breaks or frustrates you the most right now?"
+
+Only ask what you don't already know from the conversation. Frame questions as part of your discovery process: "To give you an accurate scope, I need to understand a few things…"
+
+## AZURE PRICING TOOL
+You have access to an azure_pricing tool that queries Microsoft's live Azure Retail Prices API. Use it whenever a user asks about Azure costs, pricing comparisons, cost estimates, or FinOps optimization. When using it:
+- Search for the specific service and SKU the user is asking about
+- Always present prices in a clear table format with monthly and annual projections
+- Compare pricing tiers (Basic vs Standard vs Premium) when relevant
+- Factor in Azure Hybrid Benefit (AHB) savings where Windows Server or SQL licensing applies
+- Mention Reserved Instance vs Pay-As-You-Go savings
+- If the tool returns no results, fall back to your built-in knowledge and note that pricing should be verified in the Azure Portal
+
 ## RESPONSE ENDINGS — CALL TO ACTION
 After every substantive response (solution design, assessment, technical guidance, training recommendation), always close with these three clear next steps, formatted exactly like this:
 
@@ -111,6 +132,77 @@ Do NOT include this block on simple greetings, short clarifications, or follow-u
 - Flag risky requirements clearly with impact assessment.
 - If a question is outside your expertise, say so honestly and recommend the right specialist.`;
 
+const TOOLS = [
+  { type: "web_search_20250305", name: "web_search" },
+  {
+    name: "azure_pricing",
+    description: "Query live Azure retail pricing. Use when discussing Azure costs, VM sizing, storage pricing, or FinOps optimization. Returns current pay-as-you-go prices for Azure services.",
+    input_schema: {
+      type: "object",
+      properties: {
+        serviceName: {
+          type: "string",
+          description: "Azure service name exactly as it appears in Azure, e.g. 'Virtual Machines', 'Storage', 'Azure SQL Database', 'Azure App Service', 'Azure Kubernetes Service'"
+        },
+        armRegionName: {
+          type: "string",
+          description: "Azure region code, e.g. 'westeurope', 'northeurope', 'eastus', 'westus2', 'northcentralus'. Default to 'westeurope' if user is in Europe."
+        },
+        skuName: {
+          type: "string",
+          description: "Specific SKU if known, e.g. 'Standard_D2s_v5', 'Standard_B2s', 'P1v3'. Leave empty for a broad search."
+        }
+      },
+      required: ["serviceName"]
+    }
+  }
+];
+
+async function callAzurePricing(input) {
+  try {
+    const { serviceName, armRegionName, skuName } = input;
+    let filter = `serviceName eq '${serviceName}'`;
+    if (armRegionName) filter += ` and armRegionName eq '${armRegionName}'`;
+    if (skuName) filter += ` and contains(skuName, '${skuName}')`;
+    filter += ` and priceType eq 'Consumption'`;
+
+    const url = `https://prices.azure.com/api/retail/prices?$filter=${encodeURIComponent(filter)}&$top=25`;
+    const res = await fetch(url);
+    if (!res.ok) return JSON.stringify({ error: "Azure pricing API unavailable" });
+    const data = await res.json();
+    const items = (data.Items || []).slice(0, 20).map(i => ({
+      name: i.productName,
+      sku: i.skuName,
+      meter: i.meterName,
+      region: i.armRegionName,
+      retailPrice: i.retailPrice,
+      unit: i.unitOfMeasure,
+      currency: i.currencyCode,
+    }));
+    return JSON.stringify(items.length > 0 ? items : { message: "No pricing data found for this query. Try a different service name or SKU." });
+  } catch (err) {
+    return JSON.stringify({ error: "Failed to fetch Azure pricing", detail: err.message });
+  }
+}
+
+async function callAnthropic(messages) {
+  return fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01"
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 8192,
+      system: SYSTEM,
+      messages: messages,
+      tools: TOOLS
+    })
+  });
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).end();
@@ -123,24 +215,59 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        system: SYSTEM,
-        messages: messages,
-        tools: [{ type: "web_search_20250305", name: "web_search" }]
-      })
-    });
+    let currentMessages = [...messages];
+    let attempts = 0;
+    const MAX_TOOL_ROUNDS = 5;
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    while (attempts < MAX_TOOL_ROUNDS) {
+      const response = await callAnthropic(currentMessages);
+      const data = await response.json();
+
+      if (data.error) {
+        return res.status(500).json(data);
+      }
+
+      /* If no tool use or stop_reason is end_turn, return final response */
+      if (data.stop_reason !== "tool_use") {
+        return res.status(200).json(data);
+      }
+
+      /* Execute custom tool calls (web_search is handled server-side by Anthropic) */
+      const toolUseBlocks = (data.content || []).filter(b => b.type === "tool_use");
+
+      if (toolUseBlocks.length === 0) {
+        return res.status(200).json(data);
+      }
+
+      const toolResults = [];
+      for (const block of toolUseBlocks) {
+        let result;
+        if (block.name === "azure_pricing") {
+          result = await callAzurePricing(block.input);
+        } else {
+          result = JSON.stringify({ error: `Unknown tool: ${block.name}` });
+        }
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: result,
+        });
+      }
+
+      /* Append assistant response + tool results, then loop */
+      currentMessages = [
+        ...currentMessages,
+        { role: "assistant", content: data.content },
+        { role: "user", content: toolResults },
+      ];
+
+      attempts++;
+    }
+
+    /* Safety: if we hit max rounds, return the last response */
+    const finalResponse = await callAnthropic(currentMessages);
+    const finalData = await finalResponse.json();
+    return res.status(200).json(finalData);
 
   } catch (err) {
     console.error(err);
