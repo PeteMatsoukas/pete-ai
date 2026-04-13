@@ -166,6 +166,35 @@ function FileChip({ file, onRemove }) {
   );
 }
 
+const STORAGE_KEY = "techbypete_sessions";
+const ACTIVE_KEY = "techbypete_active";
+
+function loadSessions() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
+function saveSessions(sessions) {
+  try {
+    /* Strip base64 file data before saving — keeps localStorage under 5 MB */
+    const clean = sessions.map(s => ({
+      ...s,
+      messages: s.messages.map(m => ({
+        role: m.role,
+        display: m.display || (typeof m.content === "string" ? m.content : ""),
+        content: typeof m.content === "string" ? m.content : (m.display || ""),
+      }))
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+  } catch {}
+}
+
 export default function App() {
   const [mobile, setMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -195,8 +224,35 @@ export default function App() {
     const check = () => { setMobile(window.innerWidth < 768); setVh(); };
     check();
     window.addEventListener("resize", check);
+
+    /* Load persisted sessions */
+    const saved = loadSessions();
+    if (saved.length > 0) {
+      setSessions(saved);
+      const savedActive = localStorage.getItem(ACTIVE_KEY);
+      const target = saved.find(s => s.id === savedActive) || saved[0];
+      setActiveId(target.id);
+      setChatStarted(target.messages.length > 0);
+    } else {
+      const id = uid();
+      setSessions([{ id, title: "New Chat", messages: [] }]);
+      setActiveId(id);
+    }
+
     return () => window.removeEventListener("resize", check);
   }, []);
+
+  /* Persist sessions to localStorage on every change */
+  useEffect(() => {
+    if (sessions.length > 0) saveSessions(sessions);
+  }, [sessions]);
+
+  /* Persist active session ID */
+  useEffect(() => {
+    if (activeId) {
+      try { localStorage.setItem(ACTIVE_KEY, activeId); } catch {}
+    }
+  }, [activeId]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, loading]);
 
@@ -205,8 +261,6 @@ export default function App() {
     setSessions(p => [{ id, title: "New Chat", messages: [] }, ...p]);
     setActiveId(id); setInput(""); setChatStarted(false); setAttachedFile(null);
   };
-
-  useEffect(() => { newChat(); }, []);
 
   const updateChat = (id, m) => setSessions(p => p.map(s => s.id !== id ? s : {
     ...s, messages: m,
