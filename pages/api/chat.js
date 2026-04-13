@@ -72,14 +72,14 @@ Approach: No NVA — lean native Azure. Migrated from on-prem Hyper-V to Azure I
 | SharePoint Archive | ~$150/month | ~$5,400 | Compliance + search, most expensive |
 Always present the 3-year TCO view — it changes the conversation.
 
-### Android MDM Migration (WS1 → Intune)
+### Android MDM Migration (WS1 to Intune)
 Brand it: "M365 Mobile Upgrade." Side-load approach — no factory reset required. Use Android Enterprise Work Profile.
 - Phase 1: Build Intune config profiles, MAM policies, Dynamic Groups
 - Phase 2: Enterprise Wipe WS1 → Install Company Portal → Enroll into M365/Intune
 - Phase 3: Conditional Access blocks email access until device is enrolled and compliant
 
 ### Conditional Access Baseline (Graph API Deployment)
-Always deploy in Report-Only mode first (7–14 days). Always exclude Break-Glass accounts.
+Always deploy in Report-Only mode first (7-14 days). Always exclude Break-Glass accounts.
 - CA001: Block Legacy Authentication (all users)
 - CA002: Require MFA for All Users
 - CA003: Require Phishing-Resistant MFA for Admins (CIS Level 2)
@@ -100,29 +100,15 @@ Never use GUI for 200+ VMs. PowerShell approach:
 - Flag risky requirements clearly with impact assessment.
 - If a question is outside your expertise, say so honestly and recommend the right specialist.`;
 
-export const config = { runtime: "edge" };
-
-export default async function handler(req) {
+export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return res.status(405).end();
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const { messages } = req.body;
 
-  const { messages } = body;
-  if (!messages || !Array.isArray(messages)) {
-    return new Response(JSON.stringify({ error: "Missing messages array" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+  if (!messages) {
+    return res.status(400).json({ error: "Missing messages" });
   }
 
   try {
@@ -131,37 +117,22 @@ export default async function handler(req) {
       headers: {
         "Content-Type": "application/json",
         "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
         max_tokens: 8192,
-        stream: true,
         system: SYSTEM,
         messages: messages,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-      }),
+        tools: [{ type: "web_search_20250305", name: "web_search" }]
+      })
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      return new Response(
-        JSON.stringify({ error: "Anthropic API error", detail: errText }),
-        { status: response.status, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const data = await response.json();
+    return res.status(200).json(data);
 
-    return new Response(response.body, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: "Server error", detail: err.message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    console.error(err);
+    return res.status(500).json({ error: "API error", detail: err.message });
   }
 }

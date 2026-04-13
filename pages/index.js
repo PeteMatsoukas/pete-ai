@@ -36,7 +36,22 @@ const TRAINING_CARDS = [
   {q:"We need VMware vSphere training for our team", icon:"🔵", desc:"VMware VCP-level — virtualisation, vSAN, vMotion, HA/DRS"},
 ];
 
+const ALLOWED_TYPES = [
+  "application/pdf",
+  "image/png", "image/jpeg", "image/gif", "image/webp",
+];
+const MAX_FILE_MB = 10;
+
 function uid() { return Math.random().toString(36).slice(2, 9); }
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
 
 function ContactCard({ onClose }) {
   return (
@@ -135,6 +150,22 @@ function Dots() {
   );
 }
 
+function FileChip({ file, onRemove }) {
+  const isImage = file.type.startsWith("image/");
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:10,padding:"6px 10px 6px 8px",maxWidth:260}}>
+      {isImage && file.preview ? (
+        <img src={file.preview} alt="" style={{width:28,height:28,borderRadius:6,objectFit:"cover",flexShrink:0}}/>
+      ) : (
+        <span style={{fontSize:18,flexShrink:0}}>📄</span>
+      )}
+      <span style={{fontSize:12,color:"#7ab2d4",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{file.name}</span>
+      <span style={{fontSize:10,color:"#3a5a72",flexShrink:0}}>{(file.size / 1024).toFixed(0)} KB</span>
+      <button onClick={onRemove} style={{background:"none",border:"none",color:"#4a6a82",cursor:"pointer",fontSize:16,padding:0,lineHeight:1,flexShrink:0}}>×</button>
+    </div>
+  );
+}
+
 export default function App() {
   const [mobile, setMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -146,9 +177,11 @@ export default function App() {
   const [chatStarted, setChatStarted] = useState(false);
   const [activeTab, setActiveTab] = useState("projects");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [attachedFile, setAttachedFile] = useState(null);
 
   const bottomRef = useRef(null);
   const taRef = useRef(null);
+  const fileRef = useRef(null);
 
   const active = sessions.find(s => s.id === activeId);
   const msgs = active?.messages || [];
@@ -170,14 +203,14 @@ export default function App() {
   const newChat = () => {
     const id = uid();
     setSessions(p => [{ id, title: "New Chat", messages: [] }, ...p]);
-    setActiveId(id); setInput(""); setChatStarted(false);
+    setActiveId(id); setInput(""); setChatStarted(false); setAttachedFile(null);
   };
 
   useEffect(() => { newChat(); }, []);
 
   const updateChat = (id, m) => setSessions(p => p.map(s => s.id !== id ? s : {
     ...s, messages: m,
-    title: m.find(x => x.role === "user")?.content?.slice(0, 36) || "New Chat"
+    title: m.find(x => x.role === "user")?.display?.slice(0, 36) || m.find(x => x.role === "user")?.content?.slice?.(0, 36) || "New Chat"
   }));
 
   const deleteChat = (id) => setSessions(p => {
@@ -186,26 +219,81 @@ export default function App() {
     return n;
   });
 
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      alert("Supported formats: PDF, PNG, JPEG, GIF, WebP");
+      return;
+    }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      alert(`File must be under ${MAX_FILE_MB} MB`);
+      return;
+    }
+    try {
+      const base64 = await fileToBase64(file);
+      const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+      setAttachedFile({ name: file.name, type: file.type, size: file.size, data: base64, preview });
+    } catch {
+      alert("Failed to read file. Please try again.");
+    }
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
   const send = async (text) => {
     const t = (text || input).trim();
     if (!t || loading || !activeId) return;
     setInput(""); setChatStarted(true); setDrawerOpen(false);
     if (taRef.current) taRef.current.style.height = "auto";
-    const uMsg = { role: "user", content: t };
+
+    /* Build user message */
+    let apiContent;
+    let displayText = t;
+    const currentFile = attachedFile;
+
+    if (currentFile) {
+      const parts = [];
+      if (currentFile.type.startsWith("image/")) {
+        parts.push({ type: "image", source: { type: "base64", media_type: currentFile.type, data: currentFile.data } });
+      } else if (currentFile.type === "application/pdf") {
+        parts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: currentFile.data } });
+      }
+      parts.push({ type: "text", text: t });
+      apiContent = parts;
+      displayText = "\u{1F4CE} " + currentFile.name + "\n" + t;
+    } else {
+      apiContent = t;
+    }
+
+    const uMsg = { role: "user", content: apiContent, display: displayText };
     const newMsgs = [...msgs, uMsg];
     updateChat(activeId, newMsgs);
     setLoading(true);
+    setAttachedFile(null);
+
+    /* Build API payload — strip file data from older messages to save tokens */
+    const apiMessages = newMsgs.map((m, idx) => {
+      if (m.role === "user" && Array.isArray(m.content)) {
+        if (idx < newMsgs.length - 1) {
+          const textPart = m.content.find(p => p.type === "text");
+          return { role: "user", content: textPart?.text || "" };
+        }
+        return { role: "user", content: m.content };
+      }
+      return { role: m.role, content: typeof m.content === "string" ? m.content : (m.display || "") };
+    });
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMsgs.map(m => ({ role: m.role, content: m.content })) })
+        body: JSON.stringify({ messages: apiMessages })
       });
       const data = await response.json();
       const reply = data.content?.map(b => b.text || "").join("") || "I encountered an issue. Please try again.";
-      updateChat(activeId, [...newMsgs, { role: "assistant", content: reply }]);
+      updateChat(activeId, [...newMsgs, { role: "assistant", content: reply, display: reply }]);
     } catch (e) {
-      updateChat(activeId, [...newMsgs, { role: "assistant", content: "Connection error. Please try again." }]);
+      updateChat(activeId, [...newMsgs, { role: "assistant", content: "Connection error. Please try again.", display: "Connection error. Please try again." }]);
     } finally { setLoading(false); }
   };
 
@@ -312,6 +400,7 @@ export default function App() {
         .pete-btn:hover{background:linear-gradient(135deg,rgba(122,178,212,0.18),rgba(14,165,233,0.12))!important;border-color:rgba(122,178,212,0.6)!important}
         .pete-btn:active{transform:scale(0.97)}
         .chatitem:hover{background:rgba(122,178,212,0.1)!important}
+        .attach-btn:hover{background:rgba(122,178,212,0.15)!important;border-color:rgba(122,178,212,0.4)!important}
       `}</style>
 
       <div style={{
@@ -325,7 +414,6 @@ export default function App() {
         {/* TOP NAV */}
         <div style={{background:"#1a2840",borderBottom:"1px solid rgba(122,178,212,0.15)",padding:mobile?"10px 12px":"10px 20px",display:"flex",alignItems:"center",gap:12,flexShrink:0,zIndex:10}}>
 
-          {/* Meet Pete button */}
           <button
             className="pete-btn"
             onClick={() => setDrawerOpen(v => !v)}
@@ -353,7 +441,6 @@ export default function App() {
             </div>
           </button>
 
-          {/* Quote */}
           <div style={{flex:1,minWidth:0}}>
             {!mobile && (
               <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:"3px solid #0ea5e9",paddingLeft:14}}>
@@ -362,8 +449,8 @@ export default function App() {
                     Technology should <strong style={{color:"#38bdf8",fontStyle:"normal",fontWeight:700}}>simplify</strong> your business, not <strong style={{color:"#38bdf8",fontStyle:"normal",fontWeight:700}}>complicate</strong> it.
                   </div>
                   <div style={{fontSize:10.5,color:"#4a6a82",marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:600}}>
-  IT Solutions Architect · MCT Trainer
-</div>
+                    IT Solutions Architect · MCT Trainer
+                  </div>
                 </div>
               </div>
             )}
@@ -397,11 +484,9 @@ export default function App() {
           <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
 
             {!chatStarted ? (
-              /* Cards view — no scroll, fills height */
               <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",padding:mobile?"10px 12px":"12px 28px"}}>
                 <div style={{flex:1,display:"flex",flexDirection:"column",maxWidth:1200,margin:"0 auto",width:"100%"}}>
 
-                  {/* Intro banner */}
                   <div style={{background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:10,padding:"10px 16px",marginBottom:10,flexShrink:0}}>
                     {activeTab === "projects" ? (
                       <p style={{color:"#cbd5e1",fontSize:mobile?13:14,lineHeight:1.65,margin:0}}>
@@ -414,7 +499,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Tabs */}
                   <div style={{display:"flex",marginBottom:10,background:"#1a2840",borderRadius:10,padding:4,border:"1px solid rgba(122,178,212,0.15)",flexShrink:0}}>
                     {[{id:"projects",label:mobile?"🏗️ IT Projects":"🏗️ IT Projects & Solutions"},{id:"training",label:mobile?"🎓 Training":"🎓 Training & Courses"}].map(t=>(
                       <button key={t.id} onClick={() => setActiveTab(t.id)} style={{flex:1,background:activeTab===t.id?"linear-gradient(135deg,#1a5a9a,#0ea5e9)":"transparent",border:"none",borderRadius:7,padding:mobile?"10px 6px":"10px 16px",color:activeTab===t.id?"#fff":"#4a6a82",fontSize:mobile?13:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s",minHeight:40}}>
@@ -423,12 +507,10 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* Label */}
                   <div style={{fontSize:10,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:8,flexShrink:0}}>
                     {activeTab==="projects" ? "Select your IT challenge" : "Select a training course"}
                   </div>
 
-                  {/* Project cards — fills remaining space */}
                   {activeTab === "projects" && (
                     <div style={{flex:1,display:"grid",gridTemplateColumns:mobile?"1fr 1fr":"1fr 1fr 1fr",gridTemplateRows:mobile?"repeat(6,1fr)":"repeat(4,1fr)",gap:mobile?8:10,minHeight:0}}>
                       {PROJECT_CARDS.map((c,i) => (
@@ -441,7 +523,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Training cards — fills remaining space */}
                   {activeTab === "training" && (
                     <div style={{flex:1,display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gridTemplateRows:"repeat(2,1fr)",gap:10,minHeight:0}}>
                       {TRAINING_CARDS.map((c,i) => (
@@ -458,17 +539,17 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* Chat view */
               <div style={{flex:1,overflowY:"auto",padding:mobile?"12px":"20px 28px",WebkitOverflowScrolling:"touch"}}>
                 <div style={{maxWidth:960,margin:"0 auto"}}>
                   <button onClick={() => setChatStarted(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,color:"#7ab2d4",fontSize:13,fontWeight:600,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",marginBottom:14,minHeight:40}}>← Back to topics</button>
                   {msgs.map((msg, idx) => {
                     const isUser = msg.role === "user";
+                    const displayContent = msg.display || (typeof msg.content === "string" ? msg.content : "");
                     return (
                       <div key={idx} className="fin" style={{display:"flex",justifyContent:isUser?"flex-end":"flex-start",marginBottom:12,gap:8,alignItems:"flex-start"}}>
                         {!isUser && <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0,marginTop:2}}/>}
                         <div style={{maxWidth:"85%",background:isUser?"linear-gradient(135deg,#0d2d6e,#0a1e4a)":"#1e2e42",border:isUser?"1px solid rgba(122,178,212,0.25)":"1px solid rgba(122,178,212,0.12)",borderRadius:isUser?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"11px 14px",boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
-                          {isUser ? <p style={{color:"#c8dff0",fontSize:14,lineHeight:1.6,margin:0}}>{msg.content}</p> : <Msg content={msg.content}/>}
+                          {isUser ? <p style={{color:"#c8dff0",fontSize:14,lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{displayContent}</p> : <Msg content={displayContent}/>}
                         </div>
                         {isUser && <div style={{width:28,height:28,borderRadius:7,flexShrink:0,background:"rgba(122,178,212,0.12)",border:"1px solid rgba(122,178,212,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#7ab2d4",marginTop:2}}>U</div>}
                       </div>
@@ -506,7 +587,25 @@ export default function App() {
                     {!chatStarted && activeTab === "training" ? "Ask about a training course" : "Describe your IT challenge"}
                   </div>
                 </div>
+
+                {/* File attachment chip */}
+                {attachedFile && (
+                  <div style={{marginBottom:8}}>
+                    <FileChip file={attachedFile} onRemove={() => setAttachedFile(null)}/>
+                  </div>
+                )}
+
                 <div style={{display:"flex",gap:10,alignItems:"flex-end",background:"#0a1525",border:"2px solid #38bdf8",borderRadius:mobile?14:16,padding:mobile?"10px 12px":"14px 18px",boxShadow:"0 0 24px rgba(56,189,248,0.15)"}}>
+                  {/* File upload button */}
+                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" onChange={handleFileSelect} style={{display:"none"}}/>
+                  <button
+                    className="attach-btn"
+                    onClick={() => fileRef.current?.click()}
+                    disabled={loading}
+                    title="Attach PDF or image"
+                    style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,width:mobile?40:38,height:mobile?40:38,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"#7ab2d4",transition:"all .15s",fontSize:18}}>
+                    📎
+                  </button>
                   <textarea ref={taRef} value={input} onChange={onTa} onKeyDown={onKey}
                     placeholder={!chatStarted && activeTab==="training" ? "e.g. We need AZ-104 training for 10 engineers…" : "e.g. We need to migrate our servers to Azure…"}
                     rows={mobile?1:2}
