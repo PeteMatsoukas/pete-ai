@@ -6,6 +6,18 @@ const CONTACT = {
   linkedin: "https://www.linkedin.com/in/panosmatsoukas/",
 };
 
+const CALENDLY_URL = "https://calendly.com/pilot3282/30min";
+
+/* Analytics — tracks events to Vercel Analytics + console in dev */
+function trackEvent(name, data = {}) {
+  try {
+    /* Vercel Web Analytics */
+    if (window.va) window.va("event", { name, ...data });
+    /* Future: PostHog, GA4, etc. */
+    if (window.posthog) window.posthog.capture(name, data);
+  } catch {}
+}
+
 const CERTS = [
   {l:"MCT",i:"🎓"},{l:"Azure Expert",i:"☁️"},{l:"MCP",i:"🏅"},
   {l:"5x VCP",i:"🖥️"},{l:"CCNA R&S",i:"🔗"},{l:"CCNA Sec",i:"🔒"},
@@ -295,6 +307,82 @@ function openDocumentPrint(markdownText) {
   }
 }
 
+function LeadCaptureModal({ onClose, onSubmit }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = () => {
+    if (!name.trim() || !email.trim() || !consent) return;
+    const lead = { name: name.trim(), email: email.trim(), timestamp: new Date().toISOString() };
+    /* Store lead locally */
+    try {
+      const existing = JSON.parse(localStorage.getItem("techbypete_leads") || "[]");
+      existing.push(lead);
+      localStorage.setItem("techbypete_leads", JSON.stringify(existing));
+    } catch {}
+    trackEvent("lead_captured", { name: lead.name });
+    setSubmitted(true);
+    if (onSubmit) onSubmit(lead);
+  };
+
+  return (
+    <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)"}}/>
+      <div style={{
+        position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,
+        width:"min(440px, calc(100vw - 32px))",
+        background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",
+        border:"2px solid rgba(122,178,212,0.35)",borderRadius:20,
+        boxShadow:"0 24px 80px rgba(0,0,0,0.8)",padding:"28px 24px",
+        animation:"fadeUp 0.25s ease",
+      }}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontSize:15,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>
+            {submitted ? "✅ You're all set!" : "📋 Get Your Free Assessment"}
+          </span>
+          <button onClick={onClose} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>×</button>
+        </div>
+
+        {submitted ? (
+          <div style={{textAlign:"center",padding:"16px 0"}}>
+            <p style={{color:"#94a3b8",fontSize:14,lineHeight:1.7,margin:"0 0 16px"}}>
+              Thanks, <strong style={{color:"#38bdf8"}}>{name}</strong>! Your assessment is ready to download. Pete will also follow up at <strong style={{color:"#38bdf8"}}>{email}</strong> to discuss next steps.
+            </p>
+            <button onClick={onClose} style={{background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"12px 24px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              Got it — close
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={{color:"#94a3b8",fontSize:13,lineHeight:1.6,margin:"0 0 18px"}}>
+              Enter your details to download the assessment PDF and receive a follow-up from Pete with next steps.
+            </p>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="Your name"
+                style={{background:"#0a1525",border:"2px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email" type="email"
+                style={{background:"#0a1525",border:"2px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+              <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"4px 0"}}>
+                <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}
+                  style={{marginTop:3,accentColor:"#0ea5e9",width:18,height:18,flexShrink:0}}/>
+                <span style={{fontSize:12,color:"#64748b",lineHeight:1.5}}>
+                  I agree to receive a follow-up from Pete regarding this assessment. My data will not be shared with third parties or used to train AI models.
+                </span>
+              </label>
+              <button onClick={handleSubmit} disabled={!name.trim() || !email.trim() || !consent}
+                style={{background:(!name.trim()||!email.trim()||!consent)?"rgba(122,178,212,0.1)":"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"14px 20px",color:(!name.trim()||!email.trim()||!consent)?"#4a6a82":"#fff",fontSize:14,fontWeight:700,cursor:(!name.trim()||!email.trim()||!consent)?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s",minHeight:48}}>
+                📄 Download Assessment & Submit
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 const STORAGE_KEY = "techbypete_sessions";
 const ACTIVE_KEY = "techbypete_active";
 
@@ -337,6 +425,11 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [attachedFile, setAttachedFile] = useState(null);
   const [streamingText, setStreamingText] = useState("");
+  const [showLeadCapture, setShowLeadCapture] = useState(false);
+  const [leadDocContent, setLeadDocContent] = useState("");
+  const [listening, setListening] = useState(false);
+  const [speakingIdx, setSpeakingIdx] = useState(null);
+  const recognitionRef = useRef(null);
 
   const bottomRef = useRef(null);
   const taRef = useRef(null);
@@ -367,6 +460,14 @@ export default function App() {
       const id = uid();
       setSessions([{ id, title: "New Chat", messages: [] }]);
       setActiveId(id);
+    }
+
+    /* Load Vercel Web Analytics */
+    if (!document.querySelector('script[src*="vercel/insights"]')) {
+      const s = document.createElement("script");
+      s.src = "/_vercel/insights/script.js";
+      s.defer = true;
+      document.head.appendChild(s);
     }
 
     return () => window.removeEventListener("resize", check);
@@ -413,6 +514,81 @@ export default function App() {
     setInput("");
   };
 
+  /* Voice Input — Speech-to-Text */
+  const toggleListening = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Voice input is not supported in this browser. Try Chrome or Edge."); return; }
+
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+
+    const recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map(r => r[0].transcript).join("");
+      setInput(transcript);
+      if (taRef.current) {
+        taRef.current.style.height = "auto";
+        taRef.current.style.height = Math.min(taRef.current.scrollHeight, 120) + "px";
+      }
+    };
+
+    recognition.onend = () => { setListening(false); recognitionRef.current = null; };
+    recognition.onerror = () => { setListening(false); recognitionRef.current = null; };
+
+    recognition.start();
+    setListening(true);
+    trackEvent("voice_input_start");
+  };
+
+  /* Voice Output — Text-to-Speech */
+  const speakMessage = (text, idx) => {
+    if (speakingIdx === idx) {
+      window.speechSynthesis.cancel();
+      setSpeakingIdx(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    /* Strip markdown for cleaner speech */
+    const clean = text
+      .replace(/^#+\s/gm, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/`[^`]+`/g, "")
+      .replace(/\|[^\n]+\|/g, "")
+      .replace(/^[\-\*]\s/gm, "")
+      .replace(/^\d+\.\s/gm, "")
+      .replace(/---/g, "")
+      .replace(/\[.*?\]/g, "")
+      .replace(/\n{2,}/g, ". ")
+      .replace(/\n/g, " ")
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+
+    /* Try to pick a natural English voice */
+    const voices = window.speechSynthesis.getVoices();
+    const preferred = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en"))
+      || voices.find(v => v.lang.startsWith("en") && v.localService)
+      || voices.find(v => v.lang.startsWith("en"));
+    if (preferred) utterance.voice = preferred;
+
+    utterance.onend = () => setSpeakingIdx(null);
+    utterance.onerror = () => setSpeakingIdx(null);
+
+    window.speechSynthesis.speak(utterance);
+    setSpeakingIdx(idx);
+    trackEvent("voice_output_play");
+  };
+
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -437,6 +613,7 @@ export default function App() {
   const send = async (text) => {
     const t = (text || input).trim();
     if (!t || loading || !activeId) return;
+    trackEvent("message_sent", { length: t.length, isCard: !!text });
     setInput(""); setChatStarted(true); setDrawerOpen(false); setStreamingText("");
     if (taRef.current) taRef.current.style.height = "auto";
 
@@ -649,8 +826,8 @@ export default function App() {
 
         {/* CTA buttons */}
         <div style={{padding:mobile?"20px 16px 24px":"24px 28px 28px",display:"flex",flexDirection:"column",gap:10}}>
-          <a href={"mailto:"+CONTACT.email+"?subject=Book a 15-minute call with Pete"} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,padding:"14px 20px",color:"#fff",fontSize:14,fontWeight:700,textDecoration:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(14,165,233,0.4)",fontFamily:"inherit",minHeight:50}}>
-            📞 Book a 15-minute call with Pete
+          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("calendly_click", { source: "modal" })} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,padding:"14px 20px",color:"#fff",fontSize:14,fontWeight:700,textDecoration:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(14,165,233,0.4)",fontFamily:"inherit",minHeight:50}}>
+            📞 Book a free 30-minute call with Pete
           </a>
           <div style={{display:"flex",gap:10}}>
             <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.08)",border:"2px solid rgba(122,178,212,0.3)",borderRadius:12,padding:"12px 16px",color:"#7ab2d4",fontSize:13,fontWeight:700,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
@@ -671,6 +848,7 @@ export default function App() {
         @keyframes bounce{0%,80%,100%{transform:translateY(0)}40%{transform:translateY(-7px)}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}50%{box-shadow:0 0 0 8px rgba(239,68,68,0)}}
         @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(122,178,212,0.4)}50%{box-shadow:0 0 0 6px rgba(122,178,212,0)}}
         *{box-sizing:border-box;margin:0;padding:0}
         html{height:100%;height:-webkit-fill-available}
@@ -834,20 +1012,49 @@ export default function App() {
                           <div style={{background:isUser?"linear-gradient(135deg,#0d2d6e,#0a1e4a)":"#1e2e42",border:isUser?"1px solid rgba(122,178,212,0.25)":"1px solid rgba(122,178,212,0.12)",borderRadius:isUser?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"11px 14px",boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
                             {isUser ? <p style={{color:"#c8dff0",fontSize:14,lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{displayContent}</p> : <Msg content={displayContent}/>}
                           </div>
-                          {hasDocument && (
+                          {/* Voice read-aloud button for assistant messages */}
+                          {!isUser && displayContent.length > 20 && (
                             <button
-                              onClick={() => openDocumentPrint(displayContent)}
-                              className="sbtn"
+                              onClick={() => speakMessage(displayContent, idx)}
+                              title={speakingIdx === idx ? "Stop reading" : "Read aloud"}
                               style={{
-                                marginTop:8,display:"flex",alignItems:"center",gap:8,
-                                background:"linear-gradient(135deg,#0078d4,#0ea5e9)",
-                                border:"none",borderRadius:10,padding:"10px 18px",
-                                color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",
-                                fontFamily:"inherit",boxShadow:"0 4px 16px rgba(14,165,233,0.3)",
-                                width:"100%",justifyContent:"center",minHeight:44,
+                                marginTop:4,background:"none",border:"none",
+                                cursor:"pointer",fontSize:14,padding:"4px 8px",
+                                color:speakingIdx===idx?"#ef4444":"#3a5a72",
+                                display:"flex",alignItems:"center",gap:5,
+                                borderRadius:6,transition:"all .15s",
                               }}>
-                              📄 Download as PDF
+                              {speakingIdx === idx ? "⏹️ Stop" : "🔊 Listen"}
                             </button>
+                          )}
+                          {hasDocument && (
+                            <div style={{display:"flex",gap:8,marginTop:8}}>
+                              <button
+                                onClick={() => { trackEvent("pdf_download"); openDocumentPrint(displayContent); }}
+                                className="sbtn"
+                                style={{
+                                  flex:1,display:"flex",alignItems:"center",gap:8,
+                                  background:"linear-gradient(135deg,#0078d4,#0ea5e9)",
+                                  border:"none",borderRadius:10,padding:"10px 14px",
+                                  color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
+                                  fontFamily:"inherit",boxShadow:"0 4px 16px rgba(14,165,233,0.3)",
+                                  justifyContent:"center",minHeight:44,
+                                }}>
+                                📄 Download PDF
+                              </button>
+                              <button
+                                onClick={() => { setLeadDocContent(displayContent); setShowLeadCapture(true); }}
+                                className="sbtn"
+                                style={{
+                                  flex:1,display:"flex",alignItems:"center",gap:8,
+                                  background:"rgba(52,211,153,0.1)",
+                                  border:"2px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"10px 14px",
+                                  color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",
+                                  fontFamily:"inherit",justifyContent:"center",minHeight:44,
+                                }}>
+                                ✉️ Email me this
+                              </button>
+                            </div>
                           )}
                         </div>
                         {isUser && <div style={{width:28,height:28,borderRadius:7,flexShrink:0,background:"rgba(122,178,212,0.12)",border:"1px solid rgba(122,178,212,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#7ab2d4",marginTop:2}}>U</div>}
@@ -921,6 +1128,21 @@ export default function App() {
                     style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,width:mobile?40:38,height:mobile?40:38,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"#7ab2d4",transition:"all .15s",fontSize:18}}>
                     📎
                   </button>
+                  {/* Voice input button */}
+                  <button
+                    onClick={toggleListening}
+                    disabled={loading}
+                    title={listening ? "Stop listening" : "Voice input"}
+                    style={{
+                      background:listening?"rgba(239,68,68,0.15)":"rgba(122,178,212,0.08)",
+                      border:listening?"2px solid rgba(239,68,68,0.5)":"1px solid rgba(122,178,212,0.2)",
+                      borderRadius:10,width:mobile?40:38,height:mobile?40:38,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      cursor:"pointer",flexShrink:0,transition:"all .15s",fontSize:16,
+                      animation:listening?"mic-pulse 1.5s infinite":"none",
+                    }}>
+                    {listening ? "⏹️" : "🎙️"}
+                  </button>
                   <textarea ref={taRef} value={input} onChange={onTa} onKeyDown={onKey}
                     placeholder={!chatStarted && activeTab==="training" ? "e.g. We need AZ-104 training for 10 engineers…" : "e.g. We need to migrate our servers to Azure…"}
                     rows={mobile?1:2}
@@ -950,6 +1172,17 @@ export default function App() {
 
         {showContact && <ContactCard onClose={() => setShowContact(false)}/>}
         {PeteModal}
+        {showLeadCapture && (
+          <LeadCaptureModal
+            onClose={() => setShowLeadCapture(false)}
+            onSubmit={(lead) => {
+              /* Open PDF after lead capture */
+              if (leadDocContent) {
+                setTimeout(() => openDocumentPrint(leadDocContent), 500);
+              }
+            }}
+          />
+        )}
       </div>
     </>
   );
