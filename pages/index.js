@@ -9,6 +9,81 @@ const CONTACT = {
 
 const CALENDLY_URL = "https://calendly.com/pilot3282/30min";
 
+const LANG_OPTIONS = [
+  {code:"en",label:"English",flag:"🇬🇧"},
+  {code:"el",label:"Ελληνικά",flag:"🇬🇷"},
+  {code:"de",label:"Deutsch",flag:"🇩🇪"},
+  {code:"fr",label:"Français",flag:"🇫🇷"},
+  {code:"es",label:"Español",flag:"🇪🇸"},
+  {code:"it",label:"Italiano",flag:"🇮🇹"},
+];
+
+/* CSV Parser — extracts key metrics from Azure/M365 exports */
+function parseCSVToSummary(csvText, filename) {
+  const lines = csvText.split("\n").filter(l => l.trim());
+  if (lines.length < 2) return "Uploaded CSV appears empty.";
+  const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
+  const rows = lines.slice(1).map(l => {
+    const vals = l.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || l.split(",");
+    return vals.map(v => v.trim().replace(/"/g, ""));
+  });
+
+  /* Detect Azure Cost export */
+  const costCol = headers.findIndex(h => /cost|amount|pretax/i.test(h));
+  const serviceCol = headers.findIndex(h => /meter.*category|service.*name|resource.*type/i.test(h));
+  const resourceCol = headers.findIndex(h => /resource.*name|instance.*name/i.test(h));
+
+  if (costCol !== -1) {
+    let total = 0;
+    const byService = {};
+    rows.forEach(r => {
+      const cost = parseFloat(r[costCol]) || 0;
+      total += cost;
+      const svc = (serviceCol !== -1 ? r[serviceCol] : "Unknown") || "Unknown";
+      byService[svc] = (byService[svc] || 0) + cost;
+    });
+    const sorted = Object.entries(byService).sort((a,b) => b[1] - a[1]).slice(0, 10);
+    let summary = "## Azure Cost Analysis (from uploaded CSV: " + filename + ")\n";
+    summary += "**Total spend:** $" + total.toFixed(2) + "\n";
+    summary += "**Total line items:** " + rows.length + "\n\n";
+    summary += "**Top spending services:**\n";
+    sorted.forEach(([svc, cost]) => {
+      const pct = ((cost / total) * 100).toFixed(1);
+      summary += "- **" + svc + ":** $" + cost.toFixed(2) + " (" + pct + "%)\n";
+    });
+    summary += "\nPlease analyze this Azure cost data. Identify optimization opportunities, orphaned resources, right-sizing recommendations, and potential savings from Reserved Instances or Azure Hybrid Benefit.";
+    return summary;
+  }
+
+  /* Detect M365 licensing export */
+  const licenseCol = headers.findIndex(h => /license|product|sku/i.test(h));
+  const userCol = headers.findIndex(h => /user|display.*name|upn/i.test(h));
+  if (licenseCol !== -1) {
+    const licenses = {};
+    rows.forEach(r => {
+      const lic = (r[licenseCol] || "Unknown");
+      licenses[lic] = (licenses[lic] || 0) + 1;
+    });
+    let summary = "## M365 License Analysis (from uploaded CSV: " + filename + ")\n";
+    summary += "**Total users/assignments:** " + rows.length + "\n\n";
+    summary += "**License distribution:**\n";
+    Object.entries(licenses).sort((a,b) => b[1] - a[1]).forEach(([lic, count]) => {
+      summary += "- **" + lic + ":** " + count + " assignments\n";
+    });
+    summary += "\nPlease analyze this licensing data. Identify over-provisioned licenses, users who could be downgraded, and cost optimization opportunities.";
+    return summary;
+  }
+
+  /* Generic CSV — send headers + sample rows */
+  let summary = "## Uploaded Data (CSV: " + filename + ")\n";
+  summary += "**Columns:** " + headers.join(", ") + "\n";
+  summary += "**Rows:** " + rows.length + "\n\n";
+  summary += "**Sample data (first 5 rows):**\n";
+  rows.slice(0, 5).forEach(r => { summary += "- " + r.join(" | ") + "\n"; });
+  summary += "\nPlease analyze this data and provide insights.";
+  return summary;
+}
+
 /* Analytics — tracks events to Vercel Analytics + console in dev */
 function trackEvent(name, data = {}) {
   try {
@@ -28,18 +103,18 @@ const CERTS = [
 ];
 
 const PROJECT_CARDS = [
+  {q:"Audit my Azure spend — I'll upload my cost export CSV", icon:"🔍", desc:"Upload your Azure cost CSV for instant FinOps analysis"},
+  {q:"Am I overpaying for M365 licenses? Let me upload my data", icon:"📊", desc:"Upload licensing CSV for optimization recommendations"},
+  {q:"Rate my M365 security posture — ask me 5 questions", icon:"🛡️", desc:"Quick security assessment based on your answers"},
   {q:"My server room is outdated — assess and refresh it", icon:"🖥️", desc:"Hardware, networking & infrastructure modernisation"},
   {q:"We need Zero Trust security across M365 & Azure", icon:"🔒", desc:"Conditional Access, Defender, Sentinel & compliance"},
   {q:"We want to migrate our infrastructure to Azure", icon:"☁️", desc:"Lift-and-shift, hybrid cloud or full Azure migration"},
   {q:"Our Hyper-V or VMware cluster needs upgrading", icon:"⚙️", desc:"HPE, Dell hardware refresh & virtualisation design"},
   {q:"We need a secure, resilient network with SD-WAN", icon:"🔗", desc:"FortiGate, Cisco, Ubiquiti — HA firewall & SD-WAN"},
   {q:"We're overspending on Azure — help us reduce costs", icon:"💰", desc:"FinOps, right-sizing, savings plans & governance"},
-  {q:"Our WiFi is unreliable — design a new wireless network", icon:"📡", desc:"Site survey, AP placement, RADIUS & WPA3-Enterprise"},
   {q:"We need to migrate email and collaboration to M365", icon:"📧", desc:"Exchange, Teams, SharePoint, OneDrive & Intune"},
   {q:"We need to onboard Entra ID and deploy Intune", icon:"🪪", desc:"Identity modernisation, MDM, MAM & device compliance"},
   {q:"We need DR protection — on-premises to Azure", icon:"🔄", desc:"ASR replication, Recovery Plans & automated failover"},
-  {q:"We need cross-region disaster recovery in Azure", icon:"🌍", desc:"ASR cross-region, Traffic Manager, App Gateway WAF v2"},
-  {q:"Harden our Entra ID & M365 against cyber threats", icon:"🛡️", desc:"CIS Benchmark alignment, Conditional Access, Secure Score"},
 ];
 
 const TRAINING_CARDS = [
@@ -52,6 +127,7 @@ const TRAINING_CARDS = [
 const ALLOWED_TYPES = [
   "application/pdf",
   "image/png", "image/jpeg", "image/gif", "image/webp",
+  "text/csv", "application/vnd.ms-excel",
 ];
 const MAX_FILE_MB = 10;
 
@@ -386,6 +462,182 @@ function LeadCaptureModal({ onClose, onSubmit }) {
   );
 }
 
+function ROICalculator({ onClose, mobile }) {
+  const [users, setUsers] = useState(50);
+  const [spend, setSpend] = useState(5000);
+  const [age, setAge] = useState(5);
+  const savingsRate = age >= 7 ? 0.45 : age >= 5 ? 0.35 : age >= 3 ? 0.25 : 0.15;
+  const monthlySavings = Math.round(spend * savingsRate);
+  const yearlySavings = monthlySavings * 12;
+  const migrationCost = Math.round(users * 350);
+  const paybackMonths = Math.ceil(migrationCost / monthlySavings);
+  const threeYearROI = (yearlySavings * 3) - migrationCost;
+
+  const inputStyle = {width:"100%",background:"#0a1525",border:"2px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none"};
+  const labelStyle = {fontSize:12,color:"#7ab2d4",fontWeight:600,marginBottom:4,display:"block"};
+
+  return (
+    <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)"}}/>
+      <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,width:mobile?"calc(100vw - 24px)":"min(520px, 90vw)",maxHeight:"85vh",overflowY:"auto",background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",border:"2px solid rgba(122,178,212,0.35)",borderRadius:20,boxShadow:"0 24px 80px rgba(0,0,0,0.8)",padding:"24px",animation:"fadeUp 0.25s ease"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>📊 ROI Calculator</span>
+          <button onClick={onClose} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>×</button>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div>
+            <label style={labelStyle}>Number of users / endpoints</label>
+            <input type="number" value={users} onChange={e => setUsers(Math.max(1,+e.target.value||1))} style={inputStyle}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Current monthly IT spend ($)</label>
+            <input type="number" value={spend} onChange={e => setSpend(Math.max(0,+e.target.value||0))} style={inputStyle}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Infrastructure age (years)</label>
+            <input type="range" min="1" max="15" value={age} onChange={e => setAge(+e.target.value)} style={{width:"100%",accentColor:"#0ea5e9"}}/>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#4a6a82"}}><span>1 yr</span><span style={{color:"#38bdf8",fontWeight:700}}>{age} years</span><span>15 yrs</span></div>
+          </div>
+        </div>
+        <div style={{marginTop:20,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.15)",borderRadius:14,padding:"18px"}}>
+          <div style={{fontSize:12,color:"#3a5a72",fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Projected Results</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"12px",textAlign:"center"}}>
+              <div style={{fontSize:22,fontWeight:700,color:"#34d399"}}>${monthlySavings.toLocaleString()}</div>
+              <div style={{fontSize:11,color:"#4a6a82",marginTop:2}}>Monthly Savings</div>
+            </div>
+            <div style={{background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:10,padding:"12px",textAlign:"center"}}>
+              <div style={{fontSize:22,fontWeight:700,color:"#38bdf8"}}>${yearlySavings.toLocaleString()}</div>
+              <div style={{fontSize:11,color:"#4a6a82",marginTop:2}}>Annual Savings</div>
+            </div>
+            <div style={{background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.15)",borderRadius:10,padding:"12px",textAlign:"center"}}>
+              <div style={{fontSize:22,fontWeight:700,color:"#7ab2d4"}}>{paybackMonths} mo</div>
+              <div style={{fontSize:11,color:"#4a6a82",marginTop:2}}>Payback Period</div>
+            </div>
+            <div style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:"12px",textAlign:"center"}}>
+              <div style={{fontSize:22,fontWeight:700,color:"#34d399"}}>${threeYearROI.toLocaleString()}</div>
+              <div style={{fontSize:11,color:"#4a6a82",marginTop:2}}>3-Year ROI</div>
+            </div>
+          </div>
+          <div style={{marginTop:12,fontSize:12,color:"#64748b",lineHeight:1.6}}>
+            Based on {Math.round(savingsRate*100)}% optimization rate for {age}-year-old infrastructure with {users} users. Estimated migration investment: ${migrationCost.toLocaleString()}.
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:16}}>
+          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"12px",color:"#fff",fontSize:13,fontWeight:700,textDecoration:"none",cursor:"pointer",fontFamily:"inherit"}}>
+            📞 Discuss with Pete
+          </a>
+          <button onClick={onClose} style={{flex:1,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px",color:"#7ab2d4",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+            Close
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ClientPortal({ onClose, sessions, onLoadProject, mobile }) {
+  const [email, setEmail] = useState("");
+  const [saved, setSaved] = useState([]);
+  const [view, setView] = useState("menu"); /* menu | save | load */
+  const [status, setStatus] = useState("");
+
+  const saveProject = () => {
+    if (!email.trim()) return;
+    try {
+      const projects = JSON.parse(localStorage.getItem("techbypete_projects") || "{}");
+      const key = email.trim().toLowerCase();
+      if (!projects[key]) projects[key] = [];
+      const toSave = sessions.filter(s => s.messages.length > 0).map(s => ({
+        id: s.id, title: s.title, messages: s.messages.map(m => ({ role: m.role, display: m.display || (typeof m.content === "string" ? m.content : "") })),
+        savedAt: new Date().toISOString(),
+      }));
+      projects[key] = [...toSave, ...projects[key]].slice(0, 50);
+      localStorage.setItem("techbypete_projects", JSON.stringify(projects));
+      setStatus("saved");
+      trackEvent("portal_save", { email: key, count: toSave.length });
+    } catch { setStatus("error"); }
+  };
+
+  const loadProjects = () => {
+    if (!email.trim()) return;
+    try {
+      const projects = JSON.parse(localStorage.getItem("techbypete_projects") || "{}");
+      const key = email.trim().toLowerCase();
+      setSaved(projects[key] || []);
+      setView("results");
+    } catch { setSaved([]); }
+  };
+
+  const inputStyle = {width:"100%",background:"#0a1525",border:"2px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:15,fontFamily:"inherit",outline:"none"};
+
+  return (
+    <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)"}}/>
+      <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,width:mobile?"calc(100vw - 24px)":"min(480px, 90vw)",maxHeight:"85vh",overflowY:"auto",background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",border:"2px solid rgba(122,178,212,0.35)",borderRadius:20,boxShadow:"0 24px 80px rgba(0,0,0,0.8)",padding:"24px",animation:"fadeUp 0.25s ease"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <span style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>💼 My Projects</span>
+          <button onClick={onClose} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>×</button>
+        </div>
+
+        {view === "menu" && (
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <button onClick={() => setView("save")} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:12,padding:"16px",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+              <span style={{fontSize:24}}>💾</span>
+              <div><div style={{fontSize:14,fontWeight:700,color:"#f1f5f9"}}>Save Current Sessions</div><div style={{fontSize:12,color:"#4a6a82",marginTop:2}}>Save your conversations to access them later</div></div>
+            </button>
+            <button onClick={() => setView("load")} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:12,padding:"16px",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+              <span style={{fontSize:24}}>📂</span>
+              <div><div style={{fontSize:14,fontWeight:700,color:"#f1f5f9"}}>Load Saved Projects</div><div style={{fontSize:12,color:"#4a6a82",marginTop:2}}>Retrieve your previous conversations and SOWs</div></div>
+            </button>
+          </div>
+        )}
+
+        {(view === "save" || view === "load") && (
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <button onClick={() => setView("menu")} style={{background:"none",border:"none",color:"#7ab2d4",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",textAlign:"left",padding:0}}>← Back</button>
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Enter your email" type="email" style={inputStyle}/>
+            {view === "save" ? (
+              <>
+                <button onClick={saveProject} disabled={!email.trim()} style={{background:email.trim()?"linear-gradient(135deg,#0078d4,#0ea5e9)":"rgba(122,178,212,0.1)",border:"none",borderRadius:10,padding:"14px",color:email.trim()?"#fff":"#4a6a82",fontSize:14,fontWeight:700,cursor:email.trim()?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                  💾 Save My Projects
+                </button>
+                {status === "saved" && <p style={{color:"#34d399",fontSize:13,textAlign:"center",margin:0}}>✅ Projects saved! Use this email to load them anytime.</p>}
+                {status === "error" && <p style={{color:"#ef4444",fontSize:13,textAlign:"center",margin:0}}>Failed to save. Please try again.</p>}
+              </>
+            ) : (
+              <>
+                <button onClick={loadProjects} disabled={!email.trim()} style={{background:email.trim()?"linear-gradient(135deg,#0078d4,#0ea5e9)":"rgba(122,178,212,0.1)",border:"none",borderRadius:10,padding:"14px",color:email.trim()?"#fff":"#4a6a82",fontSize:14,fontWeight:700,cursor:email.trim()?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                  📂 Load My Projects
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {view === "results" && (
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            <button onClick={() => setView("load")} style={{background:"none",border:"none",color:"#7ab2d4",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",textAlign:"left",padding:0}}>← Back</button>
+            {saved.length === 0 ? (
+              <p style={{color:"#4a6a82",fontSize:14,textAlign:"center",padding:"20px 0"}}>No saved projects found for this email.</p>
+            ) : (
+              saved.map((s, i) => (
+                <button key={i} onClick={() => { onLoadProject(s); onClose(); }} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.15)",borderRadius:10,padding:"12px 14px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",width:"100%"}}>
+                  <span style={{fontSize:16}}>💬</span>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.title}</div>
+                    <div style={{fontSize:11,color:"#3a5a72",marginTop:2}}>{new Date(s.savedAt).toLocaleDateString()} · {s.messages.length} messages</div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 const STORAGE_KEY = "techbypete_sessions";
 const ACTIVE_KEY = "techbypete_active";
 
@@ -434,6 +686,9 @@ export default function App() {
   const [speakingIdx, setSpeakingIdx] = useState(null);
   const [deferredInstall, setDeferredInstall] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [language, setLanguage] = useState("en");
+  const [showROI, setShowROI] = useState(false);
+  const [showPortal, setShowPortal] = useState(false);
   const recognitionRef = useRef(null);
 
   const bottomRef = useRef(null);
@@ -631,8 +886,9 @@ export default function App() {
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      alert("Supported formats: PDF, PNG, JPEG, GIF, WebP");
+    const isCSV = file.type === "text/csv" || file.type === "application/vnd.ms-excel" || file.name.endsWith(".csv");
+    if (!isCSV && !ALLOWED_TYPES.includes(file.type)) {
+      alert("Supported formats: PDF, PNG, JPEG, GIF, WebP, CSV");
       return;
     }
     if (file.size > MAX_FILE_MB * 1024 * 1024) {
@@ -640,9 +896,22 @@ export default function App() {
       return;
     }
     try {
-      const base64 = await fileToBase64(file);
-      const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
-      setAttachedFile({ name: file.name, type: file.type, size: file.size, data: base64, preview });
+      if (isCSV) {
+        /* Parse CSV and create analysis summary */
+        const text = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result);
+          r.onerror = () => rej(new Error("Read failed"));
+          r.readAsText(file);
+        });
+        const summary = parseCSVToSummary(text, file.name);
+        setAttachedFile({ name: file.name, type: "text/csv", size: file.size, data: null, preview: null, csvSummary: summary });
+        trackEvent("csv_upload", { filename: file.name });
+      } else {
+        const base64 = await fileToBase64(file);
+        const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+        setAttachedFile({ name: file.name, type: file.type, size: file.size, data: base64, preview });
+      }
     } catch {
       alert("Failed to read file. Please try again.");
     }
@@ -669,15 +938,21 @@ export default function App() {
     const currentFile = attachedFile;
 
     if (currentFile) {
-      const parts = [];
-      if (currentFile.type.startsWith("image/")) {
-        parts.push({ type: "image", source: { type: "base64", media_type: currentFile.type, data: currentFile.data } });
-      } else if (currentFile.type === "application/pdf") {
-        parts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: currentFile.data } });
+      if (currentFile.csvSummary) {
+        /* CSV: send parsed summary as text */
+        apiContent = currentFile.csvSummary + "\n\n" + t;
+        displayText = "\u{1F4CE} " + currentFile.name + " (analyzed)\n" + t;
+      } else {
+        const parts = [];
+        if (currentFile.type.startsWith("image/")) {
+          parts.push({ type: "image", source: { type: "base64", media_type: currentFile.type, data: currentFile.data } });
+        } else if (currentFile.type === "application/pdf") {
+          parts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: currentFile.data } });
+        }
+        parts.push({ type: "text", text: t });
+        apiContent = parts;
+        displayText = "\u{1F4CE} " + currentFile.name + "\n" + t;
       }
-      parts.push({ type: "text", text: t });
-      apiContent = parts;
-      displayText = "\u{1F4CE} " + currentFile.name + "\n" + t;
     } else {
       apiContent = t;
     }
@@ -707,7 +982,7 @@ export default function App() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, mode: activeTab }),
+        body: JSON.stringify({ messages: apiMessages, mode: activeTab, language }),
         signal: controller.signal,
       });
 
@@ -991,6 +1266,26 @@ export default function App() {
             <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>● Live</span>
           )}
 
+          {/* Language selector */}
+          <div style={{position:"relative",flexShrink:0}}>
+            <select value={language} onChange={e => { setLanguage(e.target.value); trackEvent("language_change", { lang: e.target.value }); }}
+              style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:mobile?"6px 8px":"6px 12px",color:"#7ab2d4",fontSize:13,fontFamily:"inherit",cursor:"pointer",appearance:"none",WebkitAppearance:"none",minHeight:36,minWidth:mobile?44:undefined}}>
+              {LANG_OPTIONS.map(l => <option key={l.code} value={l.code} style={{background:"#0f1e35"}}>{l.flag} {mobile ? "" : l.label}</option>)}
+            </select>
+          </div>
+
+          {/* ROI Calculator */}
+          <button onClick={() => { setShowROI(true); trackEvent("roi_open"); }}
+            style={{background:"rgba(52,211,153,0.08)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:10,padding:mobile?"0 8px":"6px 14px",color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",flexShrink:0,minHeight:36,whiteSpace:"nowrap"}}>
+            <span>📊</span>{!mobile && " ROI Calc"}
+          </button>
+
+          {/* My Projects */}
+          <button onClick={() => { setShowPortal(true); trackEvent("portal_open"); }}
+            style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:mobile?"0 8px":"6px 14px",color:"#7ab2d4",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",flexShrink:0,minHeight:36,whiteSpace:"nowrap"}}>
+            <span>💼</span>{!mobile && " My Projects"}
+          </button>
+
           <button onClick={() => setShowContact(v => !v)} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:20,padding:mobile?"0 12px":"7px 16px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",flexShrink:0,minHeight:44,minWidth:mobile?44:undefined}}>
             <span>💬</span>{!mobile&&" Contact Pete"}
           </button>
@@ -1253,7 +1548,7 @@ export default function App() {
 
                 <div style={{display:"flex",gap:10,alignItems:"flex-end",background:"#0a1525",border:"2px solid #38bdf8",borderRadius:mobile?14:16,padding:mobile?"10px 12px":"14px 18px",boxShadow:"0 0 24px rgba(56,189,248,0.15)"}}>
                   {/* File upload button */}
-                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" onChange={handleFileSelect} style={{display:"none"}}/>
+                  <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.csv" onChange={handleFileSelect} style={{display:"none"}}/>
                   <button
                     className="attach-btn"
                     onClick={() => fileRef.current?.click()}
@@ -1317,10 +1612,28 @@ export default function App() {
           <LeadCaptureModal
             onClose={() => setShowLeadCapture(false)}
             onSubmit={(lead) => {
-              /* Open PDF after lead capture */
               if (leadDocContent) {
                 setTimeout(() => openDocumentPrint(leadDocContent), 500);
               }
+            }}
+          />
+        )}
+
+        {/* ROI Calculator Modal */}
+        {showROI && <ROICalculator onClose={() => setShowROI(false)} mobile={mobile}/>}
+
+        {/* Client Portal Modal */}
+        {showPortal && (
+          <ClientPortal
+            onClose={() => setShowPortal(false)}
+            sessions={sessions}
+            mobile={mobile}
+            onLoadProject={(project) => {
+              const id = uid();
+              setSessions(p => [{ id, title: project.title, messages: project.messages }, ...p]);
+              setActiveId(id);
+              setChatStarted(project.messages.length > 0);
+              trackEvent("portal_load");
             }}
           />
         )}

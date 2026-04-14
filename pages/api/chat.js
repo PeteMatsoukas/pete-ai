@@ -353,10 +353,24 @@ When starting a new training conversation, guide with:
 
 Always end training discussions with: "Want me to adjust the pace, add more labs, or book a mentoring session with Pete?"`;
 
-function buildSystemPrompt(mode, userQuery = "") {
+const LANGUAGES = {
+  en: "Respond in English.",
+  el: "Respond in Greek (Ελληνικά). Use professional IT terminology in Greek where natural, but keep technical terms (Azure, Intune, VPN, etc.) in English.",
+  de: "Respond in German (Deutsch). Use professional IT terminology in German where natural, but keep technical terms in English.",
+  fr: "Respond in French (Français). Use professional IT terminology in French where natural, but keep technical terms in English.",
+  es: "Respond in Spanish (Español). Use professional IT terminology in Spanish where natural, but keep technical terms in English.",
+  it: "Respond in Italian (Italiano). Use professional IT terminology in Italian where natural, but keep technical terms in English.",
+};
+
+function buildSystemPrompt(mode, userQuery = "", language = "en") {
   let prompt = SYSTEM;
   if (mode === "training") prompt += TRAINING_MODE;
   else prompt += PROJECTS_MODE;
+
+  /* Language instruction */
+  if (language !== "en" && LANGUAGES[language]) {
+    prompt += "\n\n## LANGUAGE\n" + LANGUAGES[language];
+  }
 
   /* RAG: search knowledge base and inject relevant docs */
   if (userQuery) {
@@ -420,7 +434,7 @@ async function callAzurePricing(input) {
   }
 }
 
-async function callAnthropic(messages, stream = false, mode = "projects", userQuery = "") {
+async function callAnthropic(messages, stream = false, mode = "projects", userQuery = "", language = "en") {
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -432,7 +446,7 @@ async function callAnthropic(messages, stream = false, mode = "projects", userQu
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
       stream,
-      system: buildSystemPrompt(mode, userQuery),
+      system: buildSystemPrompt(mode, userQuery, language),
       messages: messages,
       tools: TOOLS
     })
@@ -536,13 +550,14 @@ export default async function handler(req, res) {
     return res.status(405).end();
   }
 
-  const { messages, mode } = req.body;
+  const { messages, mode, language } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "Missing messages" });
   }
 
   const activeMode = mode === "training" ? "training" : "projects";
+  const activeLang = language || "en";
 
   /* Extract latest user message text for RAG search */
   const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
@@ -565,7 +580,7 @@ export default async function handler(req, res) {
     const MAX_TOOL_ROUNDS = 5;
 
     while (attempts < MAX_TOOL_ROUNDS) {
-      const response = await callAnthropic(currentMessages, true, activeMode, userQuery);
+      const response = await callAnthropic(currentMessages, true, activeMode, userQuery, activeLang);
 
       if (!response.ok) {
         const errText = await response.text();
