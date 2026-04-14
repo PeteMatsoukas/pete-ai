@@ -1,4 +1,4 @@
-// TechByPete AI Agent v2.5 — April 2026
+// TechByPete AI Agent v3.0 — April 2026
 
 /* --- RAG Knowledge Base --- */
 function loadKnowledgeFiles() {
