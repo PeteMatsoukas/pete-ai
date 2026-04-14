@@ -439,6 +439,7 @@ export default function App() {
   const bottomRef = useRef(null);
   const taRef = useRef(null);
   const fileRef = useRef(null);
+  const abortRef = useRef(null);
 
   const active = sessions.find(s => s.id === activeId);
   const msgs = active?.messages || [];
@@ -648,6 +649,13 @@ export default function App() {
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const stopGeneration = () => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+  };
+
   const send = async (text) => {
     const t = (text || input).trim();
     if (!t || loading || !activeId) return;
@@ -693,10 +701,14 @@ export default function App() {
     });
 
     try {
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, mode: activeTab })
+        body: JSON.stringify({ messages: apiMessages, mode: activeTab }),
+        signal: controller.signal,
       });
 
       if (!response.ok) throw new Error("API " + response.status);
@@ -731,14 +743,19 @@ export default function App() {
             }
           }
         } catch (streamErr) {
-          console.warn("Stream read error, trying fallback:", streamErr);
+          /* If aborted, save what we have so far */
+          if (controller.signal.aborted && accumulated) {
+            setStreamingText("");
+            updateChat(activeId, [...newMsgs, { role: "assistant", content: accumulated + "\n\n*(Response stopped by user)*", display: accumulated + "\n\n*(Response stopped by user)*" }]);
+            return;
+          }
+          console.warn("Stream read error:", streamErr);
         }
 
         if (accumulated) {
           setStreamingText("");
           updateChat(activeId, [...newMsgs, { role: "assistant", content: accumulated, display: accumulated }]);
         } else {
-          /* Fallback: response might have been buffered as complete JSON */
           updateChat(activeId, [...newMsgs, { role: "assistant", content: "I encountered an issue processing that. Please try again.", display: "I encountered an issue processing that. Please try again." }]);
         }
 
@@ -750,11 +767,16 @@ export default function App() {
       }
 
     } catch (e) {
+      if (e.name === "AbortError") {
+        /* User stopped generation — streamErr handler already saved the text */
+        return;
+      }
       console.error("Chat error:", e);
       updateChat(activeId, [...newMsgs, { role: "assistant", content: "Connection error. Please try again.", display: "Connection error. Please try again." }]);
     } finally {
       setLoading(false);
       setStreamingText("");
+      abortRef.current = null;
     }
   };
 
@@ -1259,10 +1281,17 @@ export default function App() {
                     placeholder={!chatStarted && activeTab==="training" ? "e.g. We need AZ-104 training for 10 engineers…" : "e.g. We need to migrate our servers to Azure…"}
                     rows={mobile?1:2}
                     style={{flex:1,background:"transparent",border:"none",color:"#e2e8f0",fontSize:mobile?16:14.5,lineHeight:1.7,fontFamily:"inherit",minHeight:mobile?40:48,maxHeight:120}}/>
-                  <button className="sbtn" onClick={() => send()} disabled={!input.trim()||loading}
-                    style={{background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,width:mobile?48:46,height:mobile?48:46,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"#fff",transition:"all .15s",boxShadow:"0 0 20px rgba(14,165,233,0.5)"}}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                  </button>
+                  {loading ? (
+                    <button className="sbtn" onClick={stopGeneration}
+                      style={{background:"linear-gradient(135deg,#dc2626,#ef4444)",border:"none",borderRadius:12,width:mobile?48:46,height:mobile?48:46,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"#fff",transition:"all .15s",boxShadow:"0 0 20px rgba(239,68,68,0.4)"}}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    </button>
+                  ) : (
+                    <button className="sbtn" onClick={() => send()} disabled={!input.trim()}
+                      style={{background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,width:mobile?48:46,height:mobile?48:46,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,color:"#fff",transition:"all .15s",boxShadow:"0 0 20px rgba(14,165,233,0.5)"}}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                  )}
                 </div>
                 {!mobile && (
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"0 2px"}}>

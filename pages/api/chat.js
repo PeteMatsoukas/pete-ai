@@ -264,7 +264,7 @@ Always start the document with exactly this first line: "# Statement of Work" or
 2. Schedule a discovery call with Pete to finalize details
 3. Sign-off and project kickoff
 
-**Contact:** p.matsoukas@techbypete.com · +30 690 959 6515 · techbypete.com · Book a call: calendly.com/pilot3282/30min
+**Contact:** p.matsoukas@techbypete.com · +30 690 959 6515 · ask.techbypete.com · Book a call: calendly.com/pilot3282/30min
 
 ### Assessment Format:
 Use the same structure but replace "Scope of Work" and "Investment" with:
