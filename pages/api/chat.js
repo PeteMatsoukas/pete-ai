@@ -578,9 +578,80 @@ export const config = {
   maxDuration: 60,
 };
 
+/* ============================================
+   SECURITY — 5-LAYER PROTECTION
+   ============================================ */
+
+/* Layer 1: Rate Limiting per IP */
+const ipTracker = new Map();
+const RATE_LIMIT_HOUR = 20;
+const RATE_LIMIT_DAY = 50;
+
+function getRateLimit(ip) {
+  const now = Date.now();
+  if (!ipTracker.has(ip)) {
+    ipTracker.set(ip, { hits: [], dailyHits: 0, dailyReset: now + 86400000 });
+  }
+  const record = ipTracker.get(ip);
+  /* Reset daily counter */
+  if (now > record.dailyReset) {
+    record.dailyHits = 0;
+    record.dailyReset = now + 86400000;
+  }
+  /* Clean hourly hits older than 1 hour */
+  record.hits = record.hits.filter(t => now - t < 3600000);
+  return record;
+}
+
+/* Layer 4: Bot Detection */
+function isBot(req) {
+  const ua = (req.headers["user-agent"] || "").toLowerCase();
+  if (!ua || ua.length < 10) return true;
+  const botPatterns = ["bot","crawler","spider","scraper","curl","wget","python-requests","httpie","postman","insomnia"];
+  return botPatterns.some(p => ua.includes(p));
+}
+
+/* Layer 5: Daily Spend Cap */
+let dailyMessageCount = 0;
+let dailyResetTime = Date.now() + 86400000;
+const MAX_DAILY_MESSAGES = 500;
+
+function checkDailyCap() {
+  const now = Date.now();
+  if (now > dailyResetTime) {
+    dailyMessageCount = 0;
+    dailyResetTime = now + 86400000;
+  }
+  return dailyMessageCount < MAX_DAILY_MESSAGES;
+}
+
+/* Clean up stale IP records every 30 minutes */
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of ipTracker) {
+    if (record.hits.length === 0 && now > record.dailyReset) ipTracker.delete(ip);
+  }
+}, 1800000);
+
+/* ============================================ */
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).end();
+  }
+
+  /* --- Layer 4: Bot Detection --- */
+  if (isBot(req)) {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  /* --- Layer 5: Daily Spend Cap --- */
+  if (!checkDailyCap()) {
+    return res.status(429).json({
+      error: "limit_reached",
+      message: "Pete's AI Agent has reached its daily limit. Please book a call with Pete directly.",
+      calendly: "https://calendly.com/pilot3282/30min"
+    });
   }
 
   const { messages, mode, language } = req.body;
@@ -589,13 +660,44 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Missing messages" });
   }
 
+  /* --- Layer 3: Request Size Guard --- */
+  const lastMsg = [...messages].reverse().find(m => m.role === "user");
+  const lastMsgText = typeof lastMsg?.content === "string" ? lastMsg.content :
+    (Array.isArray(lastMsg?.content) ? lastMsg.content.find(p => p.type === "text")?.text : "") || "";
+
+  if (lastMsgText.length > 2000) {
+    return res.status(400).json({ error: "Message too long. Please keep messages under 2000 characters." });
+  }
+  if (messages.length > 30) {
+    return res.status(400).json({ error: "Conversation too long. Please start a new chat." });
+  }
+
+  /* --- Layer 1: Rate Limiting per IP --- */
+  const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.headers["x-real-ip"] || req.socket?.remoteAddress || "unknown";
+  const rateRecord = getRateLimit(ip);
+
+  if (rateRecord.hits.length >= RATE_LIMIT_HOUR) {
+    return res.status(429).json({
+      error: "rate_limited",
+      message: "You're sending messages too quickly. Please wait a few minutes and try again."
+    });
+  }
+  if (rateRecord.dailyHits >= RATE_LIMIT_DAY) {
+    return res.status(429).json({
+      error: "daily_limit",
+      message: "You've reached the daily message limit. Book a call with Pete for a deeper discussion.",
+      calendly: "https://calendly.com/pilot3282/30min"
+    });
+  }
+
+  /* Record this request */
+  rateRecord.hits.push(Date.now());
+  rateRecord.dailyHits++;
+  dailyMessageCount++;
+
   const activeMode = mode === "training" ? "training" : "projects";
   const activeLang = language || "en";
-
-  /* Extract latest user message text for RAG search */
-  const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
-  const userQuery = typeof lastUserMsg?.content === "string" ? lastUserMsg.content :
-    (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.find(p => p.type === "text")?.text : "") || "";
+  const userQuery = lastMsgText;
 
   /* Set SSE headers — disable all buffering */
   res.writeHead(200, {

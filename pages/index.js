@@ -692,6 +692,10 @@ export default function App() {
   const [showSecureScore, setShowSecureScore] = useState(false);
   const [secureScoreData, setSecureScoreData] = useState(null);
   const [secureScoreLoading, setSecureScoreLoading] = useState(false);
+  const [leadCaptured, setLeadCaptured] = useState(() => {
+    try { return !!localStorage.getItem("techbypete_lead_email"); } catch { return false; }
+  });
+  const FREE_MESSAGE_LIMIT = 5;
   const recognitionRef = useRef(null);
 
   const bottomRef = useRef(null);
@@ -996,6 +1000,15 @@ export default function App() {
   const send = async (text) => {
     const t = (text || input).trim();
     if (!t || loading || !activeId) return;
+
+    /* Layer 2: Lead capture gate — after FREE_MESSAGE_LIMIT, require email */
+    if (!leadCaptured) {
+      const totalUserMsgs = sessions.reduce((sum, s) => sum + s.messages.filter(m => m.role === "user").length, 0);
+      if (totalUserMsgs >= FREE_MESSAGE_LIMIT) {
+        setShowLeadCapture(true);
+        return;
+      }
+    }
     trackEvent("message_sent", { length: t.length, isCard: !!text });
     setInput(""); setChatStarted(true); setDrawerOpen(false); setStreamingText("");
     if (taRef.current) taRef.current.style.height = "auto";
@@ -1054,7 +1067,19 @@ export default function App() {
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error("API " + response.status);
+      if (!response.ok) {
+        let errorMsg = "I encountered an issue. Please try again.";
+        try {
+          const errData = await response.json();
+          if (errData.error === "rate_limited") errorMsg = "⏳ " + errData.message;
+          else if (errData.error === "daily_limit") errorMsg = "📅 " + errData.message + "\n\n📞 Book a call: https://calendly.com/pilot3282/30min";
+          else if (errData.error === "limit_reached") errorMsg = "🌙 " + errData.message + "\n\n📞 Book a call: https://calendly.com/pilot3282/30min";
+          else if (errData.message) errorMsg = errData.message;
+        } catch {}
+        updateChat(activeId, [...newMsgs, { role: "assistant", content: errorMsg, display: errorMsg }]);
+        setLoading(false); setStreamingText("");
+        return;
+      }
 
       if (response.body && typeof response.body.getReader === "function") {
         /* SSE streaming */
@@ -1749,6 +1774,9 @@ export default function App() {
           <LeadCaptureModal
             onClose={() => setShowLeadCapture(false)}
             onSubmit={(lead) => {
+              /* Unlock the message gate */
+              setLeadCaptured(true);
+              try { localStorage.setItem("techbypete_lead_email", lead.email); } catch {}
               if (leadDocContent) {
                 setTimeout(() => openDocumentPrint(leadDocContent), 500);
               }
