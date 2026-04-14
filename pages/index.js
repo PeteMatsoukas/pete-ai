@@ -180,7 +180,9 @@ function FileChip({ file, onRemove }) {
 
 function isDocumentResponse(text) {
   if (!text) return false;
-  return /^#\s+(Statement of Work|IT Assessment Report)/m.test(text);
+  return /^#\s+(Statement of Work|IT Assessment Report|Your Personalized)/m.test(text)
+    || /^\*\*Your Personalized .+ Learning Path/m.test(text)
+    || /^#\s+.*(Learning Path|Training Plan|Certification|Roadmap)/m.test(text);
 }
 
 function openDocumentPrint(markdownText) {

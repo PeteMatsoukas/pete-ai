@@ -325,7 +325,8 @@ Use these accurate Microsoft Learn paths:
 - Endpoint Administrator (MD-102): https://learn.microsoft.com/en-us/training/paths/endpoint-administrator/
 
 Output format for training plans:
-**Your Personalized [Duration] Learning Path - [Goal]**
+Always start a training plan document with a # heading, for example:
+# Your Personalized [Duration] Learning Path - [Goal]
 
 - Target Certification(s)
 - Weekly Plan (with direct Microsoft Learn links)
