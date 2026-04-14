@@ -111,6 +111,9 @@ Scenario: Devices enrolled and apps deployed but no security baselines, no compl
 ### Local AD Decommission & Check Point Harmony SASE Modernization — 40 Devices
 Scenario: Post-enrollment, post-hardening. 40 Hybrid Joined devices still tethered to 2 on-prem DCs. Legacy VPN for remote users. Goal: sever all local AD dependencies, go cloud-native Entra ID only, replace VPN with SASE. Approach: Dependency remediation then clean break — not just "unjoin" (which breaks profiles). Phase I: Dependency remediation — migrate internal DNS records to Harmony SASE DNS proxy, verify OneDrive KFM 100% synced (no local home drives), audit service accounts and migrate to cloud-native. Phase II: Check Point Harmony Connect SASE — tenant setup, push agent via Intune, establish Connector (lightweight VM) for any remaining on-prem resources (NAS, DB). Replaces legacy VPN entirely. Phase III: Identity transformation — use ForensiT User Profile Wizard to convert Hybrid profiles to Cloud-Only Entra ID profiles without data loss. Disjoin from local AD domain. Verify Entra ID Join only (not Hybrid). Users log in with M365 UPN via Windows Hello for Business. Phase IV: DC decommission — remove computer objects from AD, disable Entra Connect sync, power down and retire 2 DCs. Fee: $12,700 fixed ($3,500 dependency resolution + $4,200 SASE setup + $5,000 workstation transformation). Licensing: Harmony Connect SASE ~$10-15/user/mo (~$600/mo for 40 users). Timeline: 5 weeks. Key takeaway: Never just unjoin from AD — you'll break user profiles. Use profile migration tooling (ForensiT) and resolve DNS/service account dependencies first. The SASE connector eliminates the need for traditional VPN while keeping access to any remaining on-prem resources.
 
+### SQL Server Failover Cluster — Business Continuity Testing & Validation
+Scenario: Existing Windows Server Failover Cluster (WSFC) hosting SQL Server — client needed formal validation that HA mechanisms work with zero service interruption. Approach: Three-phase controlled testing — pre-flight health check, functional failover, then disruptive "hard" testing. Phase I: Cluster Validation Wizard, event log review, quorum/witness verification. Phase II: Manual node move (Node A to B), measure freeze time with connection loop script, validate VNN DNS + Kerberos SPNs. Phase III: Resilience — stop ClusSvc on active node, disconnect heartbeat NIC (split-brain test), hard reboot active node. Success criteria: failover <30 seconds, shared disks mount instantly, cluster VIP responds within 2-3 seconds, apps with MultiSubnetFailover=True reconnect automatically. Deliverable: Cluster Validation & Resilience Report with failover timing logs, configuration gap recommendations (HealthCheckTimeout, FailureConditionLevel tuning), and formal HA sign-off document. Key takeaway: Always take a full tail-log backup + VM snapshot before Phase III. If testing Always On AG instead of FCI, monitor the Redo Queue — a large queue means significantly longer failover as SQL must finish processing logs before secondary becomes primary.
+
 ## KNOWLEDGE BASE
 
 ### Archive Storage Pricing (April 2026, 3 TB)
@@ -292,6 +295,50 @@ Never use GUI for 200+ VMs. PowerShell approach:
 **Recurring:** Harmony Connect SASE ~$10-15/user/mo (~$600/mo for 40 users)
 **Timeline:** 5 weeks (Week 1-2: dependency audit + SASE build, Week 3: pilot 5 users, Week 4: batch migrate 35, Week 5: DC decommission + sign-off)
 **Key lesson:** The dependency remediation phase is where most AD decommission projects fail. People rush to unjoin without checking DNS records, service accounts, GPO dependencies, and data sync status. Spend the time upfront — it saves you from a 2 AM emergency call when someone cannot print or access a legacy app. ForensiT is essential for profile migration — without it, users lose their desktop, favorites, and app settings.
+
+### SQL Server Failover Cluster — Business Continuity Testing
+**Scenario:** Client has an existing Windows Server Failover Cluster (WSFC) hosting SQL Server (FCI or Always On AG). Needs formal proof that HA works — zero or minimal service interruption during node failure.
+
+**Phase I — Pre-Test Health Check (before you touch anything):**
+- Run Failover Cluster Validation Wizard (exclude storage impact tests if cluster is online/production)
+- Inspect Windows Event Logs + SQL Server Error Logs for red flags: intermittent heartbeat loss, disk latency spikes, quorum warnings
+- Verify Quorum Witness: Disk Witness or Cloud/File Share Witness online, votes assigned correctly
+- Document current owner node, resource groups, and dependencies
+
+**Phase II — Functional Failover Testing (simulates maintenance):**
+- Manual Node Move: move SQL Cluster Role from Node A to Node B via Failover Cluster Manager
+- Measure freeze time: run a continuous connection loop script against the SQL instance during the move
+- SPN & DNS Validation: verify Virtual Network Name (VNN) updates correctly in DNS, Kerberos auth persists
+- Application reconnection: confirm apps using MultiSubnetFailover=True reconnect without manual intervention
+- Move back to original node — repeat measurement
+
+**Phase III — Resilience (Hard) Testing (simulates real failures):**
+- CRITICAL: take full tail-log backup + VM-level snapshot before this phase
+- Must be done during a maintenance window
+- Test 1: Stop ClusSvc (Cluster Service) on active node — triggers immediate failover
+- Test 2: Disconnect heartbeat NIC — tests split-brain handling
+- Test 3: Hard reboot (non-graceful restart) of active node
+- Monitor and record behavior for each test
+
+**Success Criteria:**
+| Component | Target |
+|---|---|
+| Failover Duration | SQL services online on partner node within <30 seconds |
+| Storage Persistence | Shared disks (CSV or Physical Disk) mount instantly on target node |
+| IP/DNS Resolution | Cluster Virtual IP responds to pings within 2-3 seconds |
+| App Reconnection | Apps with MultiSubnetFailover=True reconnect without manual intervention |
+
+**Prerequisites:**
+- Full tail-log backup + VM snapshot before Phase III
+- Scheduled maintenance window for all testing
+- Admin rights: Windows nodes, SQL Instance, Active Directory (DNS/computer object permissions)
+
+**Deliverable: Cluster Validation & Resilience Report:**
+1. Failover Timing Logs — exact duration of service unavailability per test
+2. Configuration Gap Analysis — recommendations for tuning HealthCheckTimeout, FailureConditionLevel, LeaseTimeout
+3. Formal HA Sign-off Document — confirmation that environment meets defined high availability requirements
+
+**Key lesson:** If testing Always On AG instead of FCI, always monitor the Redo Queue size on secondaries. A large redo queue means significantly longer failover — SQL must finish processing those transaction logs before the secondary becomes primary. Also: never skip the pre-test health check. I have seen clusters that "looked fine" in the GUI but had intermittent heartbeat loss buried in the event logs — running a hard failover on those is asking for a split-brain disaster.
 
 ## SMART QUALIFICATION
 After 3–4 substantive exchanges in a conversation (not counting greetings or clarifications), naturally weave in qualifying questions to size the engagement. Do this conversationally — not as a rigid checklist. Pick the 2–3 most relevant from:
