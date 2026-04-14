@@ -1296,18 +1296,19 @@ export default function App() {
           />
         )}
 
-        {/* PWA Install — small floating pill, bottom-right, above input */}
+        {/* PWA Install — floating card, bottom-right */}
         {showInstallBanner && deferredInstall && (
           <div style={{
-            position:"fixed",bottom:mobile?140:120,right:16,zIndex:950,
+            position:"fixed",bottom:mobile?145:125,right:16,zIndex:950,
             background:"linear-gradient(135deg,#0078d4,#0ea5e9)",
-            padding:"10px 14px",display:"flex",alignItems:"center",gap:8,
-            borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,0.4)",
-            animation:"fadeUp 0.3s ease",maxWidth:260,
+            padding:"16px 18px",display:"flex",alignItems:"center",gap:12,
+            borderRadius:16,boxShadow:"0 6px 28px rgba(0,0,0,0.5)",
+            animation:"fadeUp 0.3s ease",maxWidth:320,
           }}>
+            <img src="/pete.jpg" alt="Pete" style={{width:40,height:40,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.5)",objectFit:"cover",objectPosition:"center top",flexShrink:0}}/>
             <div style={{flex:1}}>
-              <div style={{color:"#fff",fontSize:11,fontWeight:600,lineHeight:1.4}}>📱 Install TechByPete AI</div>
-              <div style={{color:"rgba(255,255,255,0.7)",fontSize:10,marginTop:2}}>Quick access anytime</div>
+              <div style={{color:"#fff",fontSize:14,fontWeight:700,lineHeight:1.3}}>Install TechByPete AI</div>
+              <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginTop:3}}>Quick access from your home screen</div>
             </div>
             <button onClick={async () => {
               trackEvent("pwa_install");
@@ -1315,13 +1316,13 @@ export default function App() {
               const result = await deferredInstall.userChoice;
               if (result.outcome === "accepted") setShowInstallBanner(false);
               setDeferredInstall(null);
-            }} style={{background:"#fff",color:"#0078d4",border:"none",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>
+            }} style={{background:"#fff",color:"#0078d4",border:"none",borderRadius:10,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
               Install
             </button>
             <button onClick={() => {
               setShowInstallBanner(false);
               localStorage.setItem("techbypete_install_dismissed", "1");
-            }} style={{position:"absolute",top:-6,right:-6,background:"#1e2e42",border:"2px solid #0078d4",color:"#7ab2d4",cursor:"pointer",fontSize:10,width:20,height:20,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",padding:0,lineHeight:1}}>
+            }} style={{position:"absolute",top:-8,right:-8,background:"#1e2e42",border:"2px solid #0ea5e9",color:"#7ab2d4",cursor:"pointer",fontSize:12,width:24,height:24,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",padding:0,lineHeight:1,boxShadow:"0 2px 8px rgba(0,0,0,0.3)"}}>
               ×
             </button>
           </div>
