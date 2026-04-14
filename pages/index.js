@@ -1334,7 +1334,7 @@ export default function App() {
             borderRadius:16,boxShadow:"0 6px 28px rgba(0,0,0,0.5)",
             animation:"fadeUp 0.3s ease",maxWidth:320,
           }}>
-            <img src="/pete.jpg" alt="Pete" style={{width:40,height:40,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.5)",objectFit:"cover",objectPosition:"center top",flexShrink:0}}/>
+            <img src="/techbypete-logo.png" alt="TechByPete" style={{width:40,height:40,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.5)",objectFit:"cover",flexShrink:0}}/>
             <div style={{flex:1}}>
               <div style={{color:"#fff",fontSize:14,fontWeight:700,lineHeight:1.3}}>Install TechByPete AI</div>
               <div style={{color:"rgba(255,255,255,0.7)",fontSize:12,marginTop:3}}>Quick access from your home screen</div>
