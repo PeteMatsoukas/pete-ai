@@ -98,6 +98,9 @@ Primary: North Central US. DR: Central US. Architecture: Azure Site Recovery + T
 ### Azure IaaS Cloud Migration (Lean Native)
 Approach: No NVA — lean native Azure. Migrated from on-prem Hyper-V to Azure IaaS using Azure Migrate. Connectivity: Azure VPN Gateway S2S + P2S with Entra ID SAML + MFA. Security: NSGs only (no Azure Firewall — cost-optimized). Replaced AD CS PKI with public TLS certificates. Replaced RADIUS WiFi with WPA2-PSK (simplified). Timeline: 4 weeks.
 
+### Intune Enrollment — 40 Hybrid Joined Windows Devices
+Scenario: Company-owned devices, AD + Entra ID synced, no MDM. Approach: GPO auto-enrollment — zero-touch, no SCCM, no Autopilot. Phase I: Tenant readiness + MDM scoping (2 days). Phase II: GPO engineering + deployment (3 days). Phase III: Compliance policies — BitLocker, Firewall, AV, OS build + config profiles (5 days). Fee: $3,500 fixed. Licensing: 40x M365 Business Premium at $22/user/mo = $880/month. Timeline: 2 weeks. Key takeaway: GPO auto-enrollment is the fastest path for Hybrid Joined fleets — no user interaction, no re-imaging.
+
 ## KNOWLEDGE BASE
 
 ### Archive Storage Pricing (April 2026, 3 TB)
@@ -130,6 +133,50 @@ Never use GUI for 200+ VMs. PowerShell approach:
 3. Get-VMNetworkAdapter per VM, Set-VMNetworkAdapterVlan -Access -VlanId
 4. Wrap in try/catch per VM for error isolation
 5. No reboot required — applies live
+
+### Windows Hybrid-Join Intune Enrollment (40 Devices)
+**Scenario:** 40 company-owned Windows devices, Hybrid Azure AD Joined (AD DS + Entra ID synced via Entra Connect). No MDM in place — needed centralized management, compliance, and security baselines.
+
+**Approach:** GPO-triggered auto-enrollment — zero-touch, no re-imaging, no user action, no SCCM dependency. Fastest path because Entra ID Hybrid Join is already done.
+
+**Phase I — Tenant Readiness (Day 1-2):**
+- Confirm Intune is set as MDM Authority
+- Configure MDM User Scope in Entra ID (pilot group or All)
+- Validate EnterpriseRegistration and EnterpriseEnrollment DNS CNAMEs
+- Verify Hybrid Join status on all 40 devices: dsregcmd /status (AzureAdJoined: YES + DomainJoined: YES)
+
+**Phase II — GPO Engineering (Day 3-5):**
+- Create GPO: Computer Config > Admin Templates > Windows Components > MDM > Enable automatic MDM enrollment using default Microsoft Entra credentials
+- Credential Selection: User Credentials (populates Primary User for asset tracking)
+- Link GPO to target OU containing the 40 machines
+- gpupdate /force or wait for next policy cycle
+- Devices auto-enroll into Intune — no hands-on-keyboard
+
+**Phase III — Compliance & Configuration Profiles (Day 5-10):**
+- Compliance Policy: BitLocker (XTS-AES 256-bit), Firewall status, Antivirus signatures, Minimum OS Build
+- Configuration Profiles (recommended): Wi-Fi profiles, OneDrive KFM (Known Folder Move), Edge browser security settings
+
+**Requirements:**
+- OS: Windows 10/11 Pro, Enterprise, or Education (Home not supported)
+- Network: Corporate domain connectivity (or VPN) for GPO
+- Permissions: Domain Admin for GPO, Intune/Global Admin for tenant
+- Licensing: Each user needs Intune Plan 1 — included in M365 Business Premium ($22/user/mo) or M365 E3/E5
+
+**Assumptions:**
+- All 40 devices visible in Entra admin center as Hybrid Joined
+- Network allows communication to Microsoft MDM endpoints
+
+**Exclusions:**
+- Hardware remediation or corrupted OS
+- Non-Windows devices (iOS, Android, macOS)
+- On-prem software packaging / app deployment
+
+**Pricing:**
+- Implementation fee: $3,500 (fixed) — environment audit, GPO creation, compliance policy setup, verification
+- Recurring licensing: 40x M365 Business Premium at $22/user/mo = $880/month
+- Timeline: 2 weeks, minimal disruption
+
+**Key lesson:** GPO auto-enrollment is the fastest path for Hybrid Joined devices. No SCCM co-management needed, no Autopilot re-provisioning, no user interaction. If Entra Connect sync is healthy and Hybrid Join is confirmed, you can have 40 devices enrolled in under a week. I've done this exact project — it's a 2-week engagement, not a 2-month one.
 
 ## SMART QUALIFICATION
 After 3–4 substantive exchanges in a conversation (not counting greetings or clarifications), naturally weave in qualifying questions to size the engagement. Do this conversationally — not as a rigid checklist. Pick the 2–3 most relevant from:
