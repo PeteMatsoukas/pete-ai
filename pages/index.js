@@ -77,27 +77,27 @@ function ContactCard({ onClose }) {
         <a href={"mailto:"+CONTACT.email} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:12,padding:"12px 14px",textDecoration:"none"}}>
           <span style={{fontSize:20}}>✉️</span>
           <div>
-            <div style={{fontSize:10,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>Email</div>
-            <div style={{fontSize:13,color:"#7ab2d4",fontWeight:700}}>{CONTACT.email}</div>
+            <div style={{fontSize:12,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>Email</div>
+            <div style={{fontSize:14,color:"#7ab2d4",fontWeight:700}}>{CONTACT.email}</div>
           </div>
         </a>
         <a href={"tel:"+CONTACT.phone} style={{display:"flex",alignItems:"center",gap:12,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:12,padding:"12px 14px",textDecoration:"none"}}>
           <span style={{fontSize:20}}>📞</span>
           <div>
-            <div style={{fontSize:10,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>Phone / WhatsApp</div>
-            <div style={{fontSize:13,color:"#7ab2d4",fontWeight:700}}>{CONTACT.phone}</div>
+            <div style={{fontSize:12,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>Phone / WhatsApp</div>
+            <div style={{fontSize:14,color:"#7ab2d4",fontWeight:700}}>{CONTACT.phone}</div>
           </div>
         </a>
         <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"flex",alignItems:"center",gap:12,background:"rgba(0,119,181,0.1)",border:"1px solid rgba(0,119,181,0.3)",borderRadius:12,padding:"12px 14px",textDecoration:"none"}}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
           <div>
-            <div style={{fontSize:10,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>LinkedIn</div>
-            <div style={{fontSize:13,color:"#0ea5e9",fontWeight:700}}>View Full Profile & CV</div>
+            <div style={{fontSize:12,color:"#4a6a82",fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:2}}>LinkedIn</div>
+            <div style={{fontSize:14,color:"#0ea5e9",fontWeight:700}}>View Full Profile & CV</div>
           </div>
         </a>
       </div>
       <div style={{marginTop:12,padding:"12px 14px",background:"rgba(56,189,248,0.06)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:12,textAlign:"center"}}>
-        <p style={{fontSize:12.5,color:"#7ab2d4",margin:0,lineHeight:1.6}}>📅 Mention <strong style={{color:"#38bdf8"}}>Teams call</strong> in your email and I will send you a meeting invite</p>
+        <p style={{fontSize:14,color:"#7ab2d4",margin:0,lineHeight:1.6}}>📅 Mention <strong style={{color:"#38bdf8"}}>Teams call</strong> in your email and I will send you a meeting invite</p>
       </div>
     </div>
   );
@@ -109,7 +109,7 @@ function renderInline(text) {
   while ((m = re.exec(text)) !== null) {
     if (m.index > last) parts.push(<span key={k++}>{text.slice(last, m.index)}</span>);
     if (m[0].startsWith("**")) parts.push(<strong key={k++} style={{color:"#e2e8f0",fontWeight:700}}>{m[0].slice(2,-2)}</strong>);
-    else parts.push(<code key={k++} style={{background:"#0f1e35",color:"#7ab2d4",padding:"1px 6px",borderRadius:4,fontSize:12,fontFamily:"monospace"}}>{m[0].slice(1,-1)}</code>);
+    else parts.push(<code key={k++} style={{background:"#0f1e35",color:"#7ab2d4",padding:"1px 6px",borderRadius:4,fontSize:13,fontFamily:"monospace"}}>{m[0].slice(1,-1)}</code>);
     last = m.index + m[0].length;
   }
   if (last < text.length) parts.push(<span key={k++}>{text.slice(last)}</span>);
@@ -123,33 +123,33 @@ function Msg({ content }) {
     if (l.startsWith("```")) {
       const code = []; i++;
       while (i < lines.length && !lines[i].startsWith("```")) { code.push(lines[i]); i++; }
-      els.push(<pre key={k++} style={{background:"#0f1e35",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,padding:"12px 14px",overflowX:"auto",fontFamily:"monospace",fontSize:12.5,color:"#7ab2d4",margin:"10px 0",lineHeight:1.6}}><code>{code.join("\n")}</code></pre>);
+      els.push(<pre key={k++} style={{background:"#0f1e35",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,padding:"12px 14px",overflowX:"auto",fontFamily:"monospace",fontSize:14,color:"#7ab2d4",margin:"10px 0",lineHeight:1.6}}><code>{code.join("\n")}</code></pre>);
       i++; continue;
     }
     if (l.includes("|") && lines[i+1]?.match(/^\|?[\s\-|]+\|?$/)) {
       const hdrs = l.split("|").map(h=>h.trim()).filter(Boolean); i += 2;
       const rows = [];
       while (i < lines.length && lines[i].includes("|")) { rows.push(lines[i].split("|").map(c=>c.trim()).filter(Boolean)); i++; }
-      els.push(<div key={k++} style={{overflowX:"auto",margin:"12px 0"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}><thead><tr>{hdrs.map((h,hi)=><th key={hi} style={{background:"rgba(122,178,212,0.1)",color:"#7ab2d4",padding:"7px 12px",textAlign:"left",borderBottom:"1px solid rgba(122,178,212,0.2)",fontWeight:600,fontSize:11,letterSpacing:"0.06em",textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{rows.map((r,ri)=><tr key={ri} style={{borderBottom:"1px solid rgba(122,178,212,0.08)"}}>{r.map((c,ci)=><td key={ci} style={{padding:"7px 12px",color:"#cbd5e1",fontSize:13,background:ri%2===0?"transparent":"rgba(122,178,212,0.04)"}}>{renderInline(c)}</td>)}</tr>)}</tbody></table></div>);
+      els.push(<div key={k++} style={{overflowX:"auto",margin:"12px 0"}}><table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}><thead><tr>{hdrs.map((h,hi)=><th key={hi} style={{background:"rgba(122,178,212,0.1)",color:"#7ab2d4",padding:"7px 12px",textAlign:"left",borderBottom:"1px solid rgba(122,178,212,0.2)",fontWeight:600,fontSize:12,letterSpacing:"0.06em",textTransform:"uppercase"}}>{h}</th>)}</tr></thead><tbody>{rows.map((r,ri)=><tr key={ri} style={{borderBottom:"1px solid rgba(122,178,212,0.08)"}}>{r.map((c,ci)=><td key={ci} style={{padding:"7px 12px",color:"#cbd5e1",fontSize:14,background:ri%2===0?"transparent":"rgba(122,178,212,0.04)"}}>{renderInline(c)}</td>)}</tr>)}</tbody></table></div>);
       continue;
     }
-    if (l.startsWith("## ")) { els.push(<h3 key={k++} style={{color:"#7ab2d4",fontSize:14,fontWeight:700,margin:"14px 0 6px"}}>{l.slice(3)}</h3>); i++; continue; }
-    if (l.startsWith("# "))  { els.push(<h2 key={k++} style={{color:"#a8c8e0",fontSize:15,fontWeight:700,margin:"14px 0 6px"}}>{l.slice(2)}</h2>); i++; continue; }
+    if (l.startsWith("## ")) { els.push(<h3 key={k++} style={{color:"#7ab2d4",fontSize:16,fontWeight:700,margin:"14px 0 6px"}}>{l.slice(3)}</h3>); i++; continue; }
+    if (l.startsWith("# "))  { els.push(<h2 key={k++} style={{color:"#a8c8e0",fontSize:18,fontWeight:700,margin:"16px 0 8px"}}>{l.slice(2)}</h2>); i++; continue; }
     if (l.startsWith("---")) { els.push(<hr key={k++} style={{border:"none",borderTop:"1px solid rgba(122,178,212,0.15)",margin:"12px 0"}}/>); i++; continue; }
     if (l.startsWith("- ") || l.startsWith("* ")) {
       const it = [];
       while (i < lines.length && (lines[i].startsWith("- ") || lines[i].startsWith("* "))) { it.push(lines[i].slice(2)); i++; }
-      els.push(<ul key={k++} style={{margin:"6px 0",paddingLeft:18}}>{it.map((x,xi)=><li key={xi} style={{color:"#cbd5e1",fontSize:13.5,marginBottom:3,lineHeight:1.6}}>{renderInline(x)}</li>)}</ul>);
+      els.push(<ul key={k++} style={{margin:"6px 0",paddingLeft:18}}>{it.map((x,xi)=><li key={xi} style={{color:"#cbd5e1",fontSize:15,marginBottom:4,lineHeight:1.6}}>{renderInline(x)}</li>)}</ul>);
       continue;
     }
     if (/^\d+\. /.test(l)) {
       const it = [];
       while (i < lines.length && /^\d+\. /.test(lines[i])) { it.push(lines[i].replace(/^\d+\. /,"")); i++; }
-      els.push(<ol key={k++} style={{margin:"6px 0",paddingLeft:18}}>{it.map((x,xi)=><li key={xi} style={{color:"#cbd5e1",fontSize:13.5,marginBottom:3,lineHeight:1.6}}>{renderInline(x)}</li>)}</ol>);
+      els.push(<ol key={k++} style={{margin:"6px 0",paddingLeft:18}}>{it.map((x,xi)=><li key={xi} style={{color:"#cbd5e1",fontSize:15,marginBottom:4,lineHeight:1.6}}>{renderInline(x)}</li>)}</ol>);
       continue;
     }
     if (l.trim() === "") { els.push(<div key={k++} style={{height:6}}/>); i++; continue; }
-    els.push(<p key={k++} style={{color:"#cbd5e1",fontSize:13.5,lineHeight:1.7,margin:"3px 0"}}>{renderInline(l)}</p>);
+    els.push(<p key={k++} style={{color:"#cbd5e1",fontSize:15,lineHeight:1.7,margin:"4px 0"}}>{renderInline(l)}</p>);
     i++;
   }
   return <div>{els}</div>;
@@ -172,8 +172,8 @@ function FileChip({ file, onRemove }) {
       ) : (
         <span style={{fontSize:18,flexShrink:0}}>📄</span>
       )}
-      <span style={{fontSize:12,color:"#7ab2d4",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{file.name}</span>
-      <span style={{fontSize:10,color:"#3a5a72",flexShrink:0}}>{(file.size / 1024).toFixed(0)} KB</span>
+      <span style={{fontSize:13,color:"#7ab2d4",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{file.name}</span>
+      <span style={{fontSize:11,color:"#3a5a72",flexShrink:0}}>{(file.size / 1024).toFixed(0)} KB</span>
       <button onClick={onRemove} style={{background:"none",border:"none",color:"#4a6a82",cursor:"pointer",fontSize:16,padding:0,lineHeight:1,flexShrink:0}}>×</button>
     </div>
   );
@@ -359,7 +359,7 @@ function LeadCaptureModal({ onClose, onSubmit }) {
           </div>
         ) : (
           <>
-            <p style={{color:"#94a3b8",fontSize:13,lineHeight:1.6,margin:"0 0 18px"}}>
+            <p style={{color:"#94a3b8",fontSize:14,lineHeight:1.6,margin:"0 0 18px"}}>
               Enter your details to download the assessment PDF and receive a follow-up from Pete with next steps.
             </p>
             <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -370,7 +370,7 @@ function LeadCaptureModal({ onClose, onSubmit }) {
               <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"4px 0"}}>
                 <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)}
                   style={{marginTop:3,accentColor:"#0ea5e9",width:18,height:18,flexShrink:0}}/>
-                <span style={{fontSize:12,color:"#64748b",lineHeight:1.5}}>
+                <span style={{fontSize:13,color:"#64748b",lineHeight:1.5}}>
                   I agree to receive a follow-up from Pete regarding this assessment. My data will not be shared with third parties or used to train AI models.
                 </span>
               </label>
@@ -788,7 +788,7 @@ export default function App() {
       }}>
         {/* Header */}
         <div style={{padding:mobile?"16px 16px 0":"24px 28px 0",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.12em",textTransform:"uppercase"}}>Meet Pete Matsoukas</div>
+          <div style={{fontSize:12,fontWeight:700,color:"#3a5a72",letterSpacing:"0.12em",textTransform:"uppercase"}}>Meet Pete Matsoukas</div>
           <button onClick={() => setDrawerOpen(false)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>×</button>
         </div>
 
@@ -798,18 +798,18 @@ export default function App() {
             <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" title="View LinkedIn Profile" style={{display:"block",cursor:"pointer"}}>
               <img src="/pete.jpg" alt="Pete Matsoukas" style={{width:mobile?110:130,height:mobile?110:130,borderRadius:16,border:"3px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",display:"block",boxShadow:"0 0 28px rgba(122,178,212,0.3)",transition:"transform .2s"}}/>
             </a>
-            <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:10,fontSize:11,color:"#0ea5e9",textDecoration:"none",fontWeight:600}}>
+            <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex",alignItems:"center",gap:5,marginTop:10,fontSize:12,color:"#0ea5e9",textDecoration:"none",fontWeight:600}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
               LinkedIn
             </a>
           </div>
           <div style={{textAlign:mobile?"center":"left",flex:1}}>
             <div style={{fontSize:mobile?22:26,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif",lineHeight:1.2}}>Pete Matsoukas</div>
-            <div style={{fontSize:14,color:"#38bdf8",fontWeight:600,marginTop:4}}>IT Solutions Architect & MCT Trainer</div>
-            <p style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.7,marginTop:12}}>
+            <div style={{fontSize:15,color:"#38bdf8",fontWeight:600,marginTop:4}}>IT Solutions Architect & MCT Trainer</div>
+            <p style={{fontSize:15,color:"#94a3b8",lineHeight:1.7,marginTop:12}}>
               15+ years hands-on expertise in Microsoft Azure, Microsoft 365, infrastructure modernization, Zero Trust security, and cloud migrations.
             </p>
-            <p style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.7,marginTop:8}}>
+            <p style={{fontSize:15,color:"#94a3b8",lineHeight:1.7,marginTop:8}}>
               I help mid-sized organizations simplify their IT — turning complex infrastructure, security, and cloud challenges into reliable, cost-effective solutions that just work.
             </p>
           </div>
@@ -820,8 +820,8 @@ export default function App() {
 
         {/* About section */}
         <div style={{padding:mobile?"20px 16px":"20px 28px"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>About Pete</div>
-          <div style={{fontSize:13.5,color:"#94a3b8",lineHeight:1.75}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>About Pete</div>
+          <div style={{fontSize:15,color:"#94a3b8",lineHeight:1.75}}>
             <p style={{margin:"0 0 10px"}}>As a Microsoft Certified Trainer (MCT) and Solutions Architect, I've spent over 15 years designing and delivering IT projects for businesses that want technology to support growth — not slow it down.</p>
             <p style={{margin:"0 0 10px"}}>Whether it's refreshing outdated server rooms, implementing proper Zero Trust security, migrating to Azure, or optimizing cloud spend, my approach is practical, vendor-neutral where it makes sense, and always focused on real business outcomes.</p>
             <p style={{margin:0}}>I've helped organizations reduce complexity, strengthen security, and lower costs — all while making sure the solutions are maintainable long after the project ends.</p>
@@ -833,7 +833,7 @@ export default function App() {
 
         {/* Credentials */}
         <div style={{padding:mobile?"20px 16px":"20px 28px"}}>
-          <div style={{fontSize:11,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Credentials & Quick Facts</div>
+          <div style={{fontSize:12,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Credentials & Quick Facts</div>
           <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:8}}>
             {[
               {i:"🎓",t:"Microsoft Certified Trainer (MCT)"},
@@ -845,14 +845,14 @@ export default function App() {
             ].map((c,i) => (
               <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.1)",borderRadius:10,padding:"10px 14px"}}>
                 <span style={{fontSize:16,flexShrink:0}}>{c.i}</span>
-                <span style={{fontSize:12.5,color:"#a8c8e0",fontWeight:500,lineHeight:1.4}}>{c.t}</span>
+                <span style={{fontSize:14,color:"#a8c8e0",fontWeight:500,lineHeight:1.4}}>{c.t}</span>
               </div>
             ))}
           </div>
           {/* Cert badges */}
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:12}}>
             {CERTS.map((c,i) => (
-              <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:600,color:"#7ab2d4",whiteSpace:"nowrap"}}>
+              <div key={i} style={{display:"flex",alignItems:"center",gap:4,background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:20,padding:"4px 10px",fontSize:12,fontWeight:600,color:"#7ab2d4",whiteSpace:"nowrap"}}>
                 <span>{c.i}</span><span>{c.l}</span>
               </div>
             ))}
@@ -864,14 +864,14 @@ export default function App() {
 
         {/* CTA buttons */}
         <div style={{padding:mobile?"20px 16px 24px":"24px 28px 28px",display:"flex",flexDirection:"column",gap:10}}>
-          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("calendly_click", { source: "modal" })} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,padding:"14px 20px",color:"#fff",fontSize:14,fontWeight:700,textDecoration:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(14,165,233,0.4)",fontFamily:"inherit",minHeight:50}}>
+          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("calendly_click", { source: "modal" })} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:12,padding:"14px 20px",color:"#fff",fontSize:15,fontWeight:700,textDecoration:"none",cursor:"pointer",boxShadow:"0 4px 20px rgba(14,165,233,0.4)",fontFamily:"inherit",minHeight:50}}>
             📞 Book a free 30-minute call with Pete
           </a>
           <div style={{display:"flex",gap:10}}>
-            <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.08)",border:"2px solid rgba(122,178,212,0.3)",borderRadius:12,padding:"12px 16px",color:"#7ab2d4",fontSize:13,fontWeight:700,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
+            <a href="https://www.techbypete.com" target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.08)",border:"2px solid rgba(122,178,212,0.3)",borderRadius:12,padding:"12px 16px",color:"#7ab2d4",fontSize:14,fontWeight:700,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
               🌐 Visit TechByPete.com
             </a>
-            <button onClick={() => setDrawerOpen(false)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.04)",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"12px 16px",color:"#4a6a82",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
+            <button onClick={() => setDrawerOpen(false)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"rgba(122,178,212,0.04)",border:"1px solid rgba(122,178,212,0.15)",borderRadius:12,padding:"12px 16px",color:"#4a6a82",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit",minHeight:46}}>
               💬 Continue chatting
             </button>
           </div>
@@ -948,10 +948,10 @@ export default function App() {
             {!mobile && (
               <div style={{display:"flex",alignItems:"center",gap:8,borderLeft:"3px solid #0ea5e9",paddingLeft:14}}>
                 <div>
-                  <div style={{fontSize:13,color:"#e2e8f0",fontStyle:"italic",fontWeight:400,lineHeight:1.5,letterSpacing:"0.01em"}}>
+                  <div style={{fontSize:14,color:"#e2e8f0",fontStyle:"italic",fontWeight:400,lineHeight:1.5,letterSpacing:"0.01em"}}>
                     Making complex IT effortless — so your business can focus on what matters.
                   </div>
-                  <div style={{fontSize:10.5,color:"#4a6a82",marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:600}}>
+                  <div style={{fontSize:12,color:"#4a6a82",marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:600}}>
                     IT Solutions Architect · MCT Trainer
                   </div>
                 </div>
@@ -960,16 +960,16 @@ export default function App() {
             {mobile && (
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <span style={{fontSize:13,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>TechByPete</span>
-                <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase"}}>● Live</span>
+                <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase"}}>● Live</span>
               </div>
             )}
           </div>
 
           {!mobile && (
-            <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:9,fontWeight:700,padding:"2px 9px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>● Live</span>
+            <span style={{background:"rgba(52,211,153,0.12)",color:"#34d399",fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:20,border:"1px solid rgba(52,211,153,0.2)",letterSpacing:"0.1em",textTransform:"uppercase",flexShrink:0}}>● Live</span>
           )}
 
-          <button onClick={() => setShowContact(v => !v)} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:20,padding:mobile?"0 12px":"7px 16px",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",flexShrink:0,minHeight:44,minWidth:mobile?44:undefined}}>
+          <button onClick={() => setShowContact(v => !v)} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:20,padding:mobile?"0 12px":"7px 16px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",flexShrink:0,minHeight:44,minWidth:mobile?44:undefined}}>
             <span>💬</span>{!mobile&&" Contact Pete"}
           </button>
         </div>
@@ -986,11 +986,11 @@ export default function App() {
 
                   <div style={{background:"rgba(122,178,212,0.05)",border:"1px solid rgba(122,178,212,0.12)",borderRadius:10,padding:"10px 16px",marginBottom:10,flexShrink:0}}>
                     {activeTab === "projects" ? (
-                      <p style={{color:"#cbd5e1",fontSize:mobile?13:14,lineHeight:1.65,margin:0}}>
+                      <p style={{color:"#cbd5e1",fontSize:mobile?14:15,lineHeight:1.65,margin:0}}>
                         👋 Hi! Get a free <strong style={{color:"#38bdf8"}}>Assessment</strong>, <strong style={{color:"#38bdf8"}}>Solution Design</strong>, or <strong style={{color:"#38bdf8"}}>Statement of Work</strong> for your IT infrastructure, cloud, or security needs — backed by <strong style={{color:"#f1f5f9"}}>15+ years</strong> of hands-on expertise.
                       </p>
                     ) : (
-                      <p style={{color:"#cbd5e1",fontSize:mobile?13:14,lineHeight:1.65,margin:0}}>
+                      <p style={{color:"#cbd5e1",fontSize:mobile?14:15,lineHeight:1.65,margin:0}}>
                         🎓 Looking for <strong style={{color:"#38bdf8"}}>IT Training</strong> for your team? Pete is a certified <strong style={{color:"#f1f5f9"}}>Microsoft MCT</strong>, VMware VCP, Cisco CCNA and Fortinet FCP trainer. Available <strong style={{color:"#38bdf8"}}>on-site</strong>, <strong style={{color:"#38bdf8"}}>remote</strong>, or <strong style={{color:"#38bdf8"}}>blended</strong>.
                       </p>
                     )}
@@ -1004,7 +1004,7 @@ export default function App() {
                     ))}
                   </div>
 
-                  <div style={{fontSize:10,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:8,flexShrink:0}}>
+                  <div style={{fontSize:12,color:"#3a5a72",letterSpacing:"0.08em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",marginBottom:8,flexShrink:0}}>
                     {activeTab==="projects" ? "Select your IT challenge" : "Select a training course"}
                   </div>
 
@@ -1013,8 +1013,8 @@ export default function App() {
                       {PROJECT_CARDS.map((c,i) => (
                         <button key={i} className="card" onClick={() => send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:10,padding:mobile?"10px":"14px 16px",cursor:"pointer",textAlign:"left",transition:"all .15s",lineHeight:1.4,fontFamily:"inherit",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center"}}>
                           <div style={{fontSize:mobile?18:22,marginBottom:4,flexShrink:0}}>{c.icon}</div>
-                          <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?11:13,marginBottom:3,lineHeight:1.3}}>{c.q}</div>
-                          <div style={{color:"#4a6a82",fontSize:mobile?10:11.5,lineHeight:1.35}}>{c.desc}</div>
+                          <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?13:14,marginBottom:4,lineHeight:1.3}}>{c.q}</div>
+                          <div style={{color:"#4a6a82",fontSize:mobile?13:14,lineHeight:1.4}}>{c.desc}</div>
                         </button>
                       ))}
                     </div>
@@ -1025,9 +1025,9 @@ export default function App() {
                       {TRAINING_CARDS.map((c,i) => (
                         <button key={i} className="card" onClick={() => send(c.q)} style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.15)",borderRadius:10,padding:mobile?"14px":"20px 24px",cursor:"pointer",textAlign:"left",transition:"all .15s",lineHeight:1.4,fontFamily:"inherit",overflow:"hidden",display:"flex",flexDirection:"column",justifyContent:"center"}}>
                           <div style={{fontSize:mobile?24:30,marginBottom:8,flexShrink:0}}>{c.icon}</div>
-                          <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?13:15,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
-                          <div style={{color:"#4a6a82",fontSize:mobile?12:13,lineHeight:1.4}}>{c.desc}</div>
-                          <div style={{marginTop:8,fontSize:10.5,color:"#2a4a62",fontStyle:"italic"}}>🎓 Delivered by certified MCT · Pete Matsoukas</div>
+                          <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?14:16,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
+                          <div style={{color:"#4a6a82",fontSize:mobile?13:14,lineHeight:1.4}}>{c.desc}</div>
+                          <div style={{marginTop:8,fontSize:12,color:"#2a4a62",fontStyle:"italic"}}>🎓 Delivered by certified MCT · Pete Matsoukas</div>
                         </button>
                       ))}
                     </div>
@@ -1038,11 +1038,11 @@ export default function App() {
             ) : (
               <div style={{flex:1,overflowY:"auto",padding:mobile?"12px":"20px 28px",WebkitOverflowScrolling:"touch"}}>
                 <div style={{maxWidth:960,margin:"0 auto"}}>
-                  <button onClick={() => setChatStarted(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,color:"#7ab2d4",fontSize:13,fontWeight:600,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",marginBottom:14,minHeight:40}}>← Back to topics</button>
+                  <button onClick={() => setChatStarted(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,color:"#7ab2d4",fontSize:14,fontWeight:600,padding:"8px 14px",cursor:"pointer",fontFamily:"inherit",marginBottom:14,minHeight:40}}>← Back to topics</button>
                   {/* Mode indicator */}
-                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:activeTab==="training"?"rgba(16,124,16,0.08)":"rgba(0,120,212,0.08)",border:activeTab==="training"?"1px solid rgba(52,211,153,0.2)":"1px solid rgba(56,189,248,0.2)",borderRadius:10,marginBottom:14,fontSize:12,fontWeight:600,color:activeTab==="training"?"#34d399":"#38bdf8"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 14px",background:activeTab==="training"?"rgba(16,124,16,0.08)":"rgba(0,120,212,0.08)",border:activeTab==="training"?"1px solid rgba(52,211,153,0.2)":"1px solid rgba(56,189,248,0.2)",borderRadius:10,marginBottom:14,fontSize:13,fontWeight:600,color:activeTab==="training"?"#34d399":"#38bdf8"}}>
                     {activeTab==="training" ? "🎓" : "🔧"} <strong>{activeTab==="training" ? "Training Mode Active" : "Projects & SOW Mode Active"}</strong>
-                    <span style={{color:"#4a6a82",fontWeight:400,fontSize:11}}> — {activeTab==="training" ? "Building your personalized learning path" : "Ready to scope and draft your Statement of Work"}</span>
+                    <span style={{color:"#4a6a82",fontWeight:400,fontSize:12}}> — {activeTab==="training" ? "Building your personalized learning path" : "Ready to scope and draft your Statement of Work"}</span>
                   </div>
                   {msgs.map((msg, idx) => {
                     const isUser = msg.role === "user";
@@ -1053,7 +1053,7 @@ export default function App() {
                         {!isUser && <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0,marginTop:2}}/>}
                         <div style={{maxWidth:"85%"}}>
                           <div style={{background:isUser?"linear-gradient(135deg,#0d2d6e,#0a1e4a)":"#1e2e42",border:isUser?"1px solid rgba(122,178,212,0.25)":"1px solid rgba(122,178,212,0.12)",borderRadius:isUser?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"11px 14px",boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
-                            {isUser ? <p style={{color:"#c8dff0",fontSize:14,lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{displayContent}</p> : <Msg content={displayContent}/>}
+                            {isUser ? <p style={{color:"#c8dff0",fontSize:15,lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{displayContent}</p> : <Msg content={displayContent}/>}
                           </div>
                           {/* Voice read-aloud button for assistant messages */}
                           {!isUser && displayContent.length > 20 && (
@@ -1062,7 +1062,7 @@ export default function App() {
                               title={speakingIdx === idx ? "Stop reading" : "Read aloud"}
                               style={{
                                 marginTop:4,background:"none",border:"none",
-                                cursor:"pointer",fontSize:14,padding:"4px 8px",
+                                cursor:"pointer",fontSize:15,padding:"4px 8px",
                                 color:speakingIdx===idx?"#ef4444":"#3a5a72",
                                 display:"flex",alignItems:"center",gap:5,
                                 borderRadius:6,transition:"all .15s",
@@ -1079,7 +1079,7 @@ export default function App() {
                                   flex:1,display:"flex",alignItems:"center",gap:8,
                                   background:"linear-gradient(135deg,#0078d4,#0ea5e9)",
                                   border:"none",borderRadius:10,padding:"10px 14px",
-                                  color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",
+                                  color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",
                                   fontFamily:"inherit",boxShadow:"0 4px 16px rgba(14,165,233,0.3)",
                                   justifyContent:"center",minHeight:44,minWidth:0,
                                 }}>
@@ -1099,7 +1099,7 @@ export default function App() {
                                   flex:1,display:"flex",alignItems:"center",gap:8,
                                   background:"rgba(122,178,212,0.08)",
                                   border:"1px solid rgba(122,178,212,0.25)",borderRadius:10,padding:"10px 14px",
-                                  color:"#7ab2d4",fontSize:12,fontWeight:700,cursor:"pointer",
+                                  color:"#7ab2d4",fontSize:13,fontWeight:700,cursor:"pointer",
                                   fontFamily:"inherit",justifyContent:"center",minHeight:44,minWidth:0,
                                 }}>
                                 📝 Markdown
@@ -1111,7 +1111,7 @@ export default function App() {
                                   flex:1,display:"flex",alignItems:"center",gap:8,
                                   background:"rgba(52,211,153,0.1)",
                                   border:"2px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"10px 14px",
-                                  color:"#34d399",fontSize:12,fontWeight:700,cursor:"pointer",
+                                  color:"#34d399",fontSize:13,fontWeight:700,cursor:"pointer",
                                   fontFamily:"inherit",justifyContent:"center",minHeight:44,minWidth:0,
                                 }}>
                                 ✉️ Email
@@ -1139,7 +1139,7 @@ export default function App() {
                       <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0}}/>
                       <div style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.12)",borderRadius:"14px 14px 14px 4px",padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
                         <Dots/>
-                        <span style={{fontSize:12,color:"#4a6a82",fontWeight:500,whiteSpace:"nowrap"}}>Pete's AI Agent is thinking…</span>
+                        <span style={{fontSize:13,color:"#4a6a82",fontWeight:500,whiteSpace:"nowrap"}}>Pete's AI Agent is thinking…</span>
                       </div>
                     </div>
                   )}
@@ -1158,7 +1158,7 @@ export default function App() {
                       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12,marginLeft:36}}>
                         {suggestions.map((s, i) => (
                           <button key={i} onClick={() => send(s)} className="sbtn"
-                            style={{background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:20,padding:"7px 14px",color:"#7ab2d4",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",whiteSpace:"nowrap"}}>
+                            style={{background:"rgba(122,178,212,0.06)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:20,padding:"7px 14px",color:"#7ab2d4",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all .15s",whiteSpace:"nowrap"}}>
                             {s}
                           </button>
                         ))}
@@ -1174,25 +1174,25 @@ export default function App() {
             <div style={{borderTop:"2px solid rgba(122,178,212,0.3)",background:"linear-gradient(180deg,#1a2840 0%,#0f1e35 100%)",padding:mobile?"10px 12px":"12px 28px 18px",paddingBottom:`max(${mobile?"10px":"18px"}, env(safe-area-inset-bottom, 0px))`,flexShrink:0}}>
               <div style={{maxWidth:1200,margin:"0 auto"}}>
                 <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8,overflowX:"auto",WebkitOverflowScrolling:"touch",msOverflowStyle:"none",scrollbarWidth:"none"}}>
-                  <button onClick={newChat} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,padding:"0 12px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,boxShadow:"0 0 10px rgba(14,165,233,0.3)",flexShrink:0,whiteSpace:"nowrap",minHeight:36,minWidth:64}}>
+                  <button onClick={newChat} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:8,color:"#fff",fontSize:13,fontWeight:700,padding:"0 12px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:5,boxShadow:"0 0 10px rgba(14,165,233,0.3)",flexShrink:0,whiteSpace:"nowrap",minHeight:36,minWidth:64}}>
                     <span>✏️</span> New
                   </button>
                   {sessions.some(s => s.messages.length > 0) && (
-                    <button onClick={clearAllChats} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,color:"#ef4444",fontSize:11,fontWeight:600,padding:"0 10px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,flexShrink:0,whiteSpace:"nowrap",minHeight:36}}>
+                    <button onClick={clearAllChats} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:8,color:"#ef4444",fontSize:12,fontWeight:600,padding:"0 10px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4,flexShrink:0,whiteSpace:"nowrap",minHeight:36}}>
                       🗑️ Clear all
                     </button>
                   )}
                   {sessions.map(s => (
                     <div key={s.id} className="chatitem" onClick={() => { setActiveId(s.id); setChatStarted(s.messages.length > 0); }} style={{display:"flex",alignItems:"center",gap:5,padding:"6px 10px",borderRadius:8,cursor:"pointer",background:s.id===activeId?"rgba(122,178,212,0.15)":"rgba(122,178,212,0.06)",border:s.id===activeId?"1px solid rgba(122,178,212,0.35)":"1px solid rgba(122,178,212,0.12)",transition:"all .15s",whiteSpace:"nowrap",flexShrink:0,minHeight:36}}>
                       <span style={{fontSize:12}}>💬</span>
-                      <span style={{fontSize:12,color:s.id===activeId?"#7ab2d4":"#3a5a72",maxWidth:80,overflow:"hidden",textOverflow:"ellipsis"}}>{s.title}</span>
-                      <button onClick={e => { e.stopPropagation(); deleteChat(s.id); }} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",color:"#ef4444",cursor:"pointer",fontSize:13,padding:"0",lineHeight:1,minWidth:22,minHeight:22,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
+                      <span style={{fontSize:13,color:s.id===activeId?"#7ab2d4":"#3a5a72",maxWidth:80,overflow:"hidden",textOverflow:"ellipsis"}}>{s.title}</span>
+                      <button onClick={e => { e.stopPropagation(); deleteChat(s.id); }} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",color:"#ef4444",cursor:"pointer",fontSize:14,padding:"0",lineHeight:1,minWidth:22,minHeight:22,borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
                     </div>
                   ))}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
                   <div style={{width:6,height:6,borderRadius:"50%",background:"#38bdf8",boxShadow:"0 0 8px rgba(56,189,248,0.8)",animation:"bounce 2s infinite",flexShrink:0}}/>
-                  <div style={{fontSize:11.5,color:"#38bdf8",fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif"}}>
+                  <div style={{fontSize:13,color:"#38bdf8",fontWeight:700,letterSpacing:"0.04em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif"}}>
                     {!chatStarted && activeTab === "training" ? "Ask about a training course" : "Describe your IT challenge"}
                   </div>
                 </div>
@@ -1203,21 +1203,21 @@ export default function App() {
                     <button
                       onClick={() => { trackEvent("action_sow"); send("I'd like to scope a project and generate a Statement of Work. Let's start the discovery."); }}
                       disabled={loading}
-                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"10px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,opacity:loading?0.5:1,boxShadow:"0 2px 12px rgba(14,165,233,0.3)"}}>
+                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"10px 14px",color:"#fff",fontSize:13,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,opacity:loading?0.5:1,boxShadow:"0 2px 12px rgba(14,165,233,0.3)"}}>
                       📋 Generate SOW Outline
                     </button>
                   ) : (
                     <button
                       onClick={() => { trackEvent("action_training"); send("I'd like to build a personalized training and certification plan. Let's start with my current role and goals."); }}
                       disabled={loading}
-                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"linear-gradient(135deg,#107c10,#34d399)",border:"none",borderRadius:10,padding:"10px 14px",color:"#fff",fontSize:12,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,opacity:loading?0.5:1,boxShadow:"0 2px 12px rgba(52,211,153,0.3)"}}>
+                      style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"linear-gradient(135deg,#107c10,#34d399)",border:"none",borderRadius:10,padding:"10px 14px",color:"#fff",fontSize:13,fontWeight:700,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,opacity:loading?0.5:1,boxShadow:"0 2px 12px rgba(52,211,153,0.3)"}}>
                       🎯 Build My Training Plan
                     </button>
                   )}
                   <a
                     href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
                     onClick={() => trackEvent("calendly_click", { source: "input_bar" })}
-                    style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:10,padding:"10px 14px",color:"#7ab2d4",fontSize:12,fontWeight:600,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:40,whiteSpace:"nowrap",flexShrink:0}}>
+                    style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:10,padding:"10px 14px",color:"#7ab2d4",fontSize:13,fontWeight:600,textDecoration:"none",cursor:"pointer",fontFamily:"inherit",minHeight:40,whiteSpace:"nowrap",flexShrink:0}}>
                     📞 Book a call
                   </a>
                 </div>
@@ -1266,14 +1266,14 @@ export default function App() {
                 </div>
                 {!mobile && (
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:8,padding:"0 2px"}}>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>TECHBYPETE.COM · AI AGENT · PRESS ENTER TO SEND</div>
-                    <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",display:"flex",alignItems:"center",gap:4}}>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.1em"}}>TECHBYPETE.COM · AI AGENT · PRESS ENTER TO SEND</div>
+                    <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",display:"flex",alignItems:"center",gap:4}}>
                       <span>🔒</span> Conversations are encrypted, never used to train AI, and deleted after 30 days unless saved
                     </div>
                   </div>
                 )}
                 {mobile && (
-                  <div style={{fontSize:9,color:"rgba(255,255,255,0.45)",textAlign:"center",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",textAlign:"center",marginTop:6,display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                     <span>🔒</span> Encrypted · Private · Auto-deleted after 30 days
                   </div>
                 )}
