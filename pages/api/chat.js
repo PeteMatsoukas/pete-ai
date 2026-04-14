@@ -102,6 +102,15 @@ Approach: No NVA — lean native Azure. Migrated from on-prem Hyper-V to Azure I
 ### Intune Enrollment — 40 Hybrid Joined Windows Devices
 Scenario: Company-owned devices, AD + Entra ID synced, no MDM. Approach: GPO auto-enrollment — zero-touch, no SCCM, no Autopilot. Phase I: Tenant readiness + MDM scoping (2 days). Phase II: GPO engineering + deployment (3 days). Phase III: Compliance policies — BitLocker, Firewall, AV, OS build + config profiles (5 days). Fee: $3,500 fixed. Licensing: 40x M365 Business Premium at $22/user/mo = $880/month. Timeline: 2 weeks. Key takeaway: GPO auto-enrollment is the fastest path for Hybrid Joined fleets — no user interaction, no re-imaging.
 
+### Intune Automated App Deployment — 40 Devices + Future-Proofing
+Scenario: Post-enrollment, no standardized software suite. Needed "Gold Standard" app bundle deployed silently to 40 existing + all future devices. Approach: Win32 app packaging + Dynamic Device Groups + ESP. Phase I: App inventory and .intunewin packaging (up to 5 core apps — Office 365, Chrome, Adobe, Zoom, VPN). Phase II: Dynamic Group engineering with query (device.deviceOSType -eq "Windows") -and (device.managementType -eq "MDM"). Phase III: Required deployment with BITS delivery optimization. Phase IV: ESP configured to block desktop until core apps installed. Fee: $2,500 fixed (app packaging + dynamic groups + ESP). Combined with enrollment: $5,300 total. Timeline: 3 weeks. Key takeaway: Win32 app model with custom PowerShell detection scripts prevents the "install loop" error. Dynamic groups future-proof the deployment — any new machine auto-receives apps on enrollment.
+
+### Intune Security Hardening, CIS Compliance & Conditional Access — 40 Devices (SentinelOne/Huntress EDR)
+Scenario: Devices enrolled and apps deployed but no security baselines, no compliance enforcement, no Zero Trust gate. Existing EDR: SentinelOne + Huntress (not Defender for Endpoint). Approach: CIS Level 1 hardening + custom compliance for third-party EDR + Conditional Access. Phase I: Advanced compliance — minimum OS build (Win 11 23H2), patch level (7-day grace), BitLocker XTS-AES 256 with TPM 2.0, Secure Boot, Code Integrity, password policy. Phase II: Custom EDR compliance — PowerShell discovery script runs every 8 hours checking SentinelOne service status + Huntress agent connectivity, results mapped via JSON to Intune compliance. If either agent is disabled, device flips to Non-Compliant immediately. Phase III: CIS Level 1 OS hardening via Settings Catalog — 300+ settings: disable LLMNR, NetBIOS, SMBv1, enforce UAC secure desktop, disable Remote Registry, Xbox services. Harden Edge browser. Phase IV: Conditional Access — require device compliance for all M365 apps, block legacy auth (IMAP/POP3), deploy in Report-Only first then enforce. Fee: $6,500 fixed ($2,200 compliance + $1,800 EDR integration + $2,500 CIS/CA). Timeline: 3 weeks. Key takeaway: Custom compliance scripts are the only way to integrate third-party EDR health into Intune. Without them, a device with a disabled SentinelOne agent would still show "Compliant" — that is a critical gap most implementations miss.
+
+### Local AD Decommission & Check Point Harmony SASE Modernization — 40 Devices
+Scenario: Post-enrollment, post-hardening. 40 Hybrid Joined devices still tethered to 2 on-prem DCs. Legacy VPN for remote users. Goal: sever all local AD dependencies, go cloud-native Entra ID only, replace VPN with SASE. Approach: Dependency remediation then clean break — not just "unjoin" (which breaks profiles). Phase I: Dependency remediation — migrate internal DNS records to Harmony SASE DNS proxy, verify OneDrive KFM 100% synced (no local home drives), audit service accounts and migrate to cloud-native. Phase II: Check Point Harmony Connect SASE — tenant setup, push agent via Intune, establish Connector (lightweight VM) for any remaining on-prem resources (NAS, DB). Replaces legacy VPN entirely. Phase III: Identity transformation — use ForensiT User Profile Wizard to convert Hybrid profiles to Cloud-Only Entra ID profiles without data loss. Disjoin from local AD domain. Verify Entra ID Join only (not Hybrid). Users log in with M365 UPN via Windows Hello for Business. Phase IV: DC decommission — remove computer objects from AD, disable Entra Connect sync, power down and retire 2 DCs. Fee: $12,700 fixed ($3,500 dependency resolution + $4,200 SASE setup + $5,000 workstation transformation). Licensing: Harmony Connect SASE ~$10-15/user/mo (~$600/mo for 40 users). Timeline: 5 weeks. Key takeaway: Never just unjoin from AD — you'll break user profiles. Use profile migration tooling (ForensiT) and resolve DNS/service account dependencies first. The SASE connector eliminates the need for traditional VPN while keeping access to any remaining on-prem resources.
+
 ## KNOWLEDGE BASE
 
 ### Archive Storage Pricing (April 2026, 3 TB)
@@ -178,6 +187,111 @@ Never use GUI for 200+ VMs. PowerShell approach:
 - Timeline: 2 weeks, minimal disruption
 
 **Key lesson:** GPO auto-enrollment is the fastest path for Hybrid Joined devices. No SCCM co-management needed, no Autopilot re-provisioning, no user interaction. If Entra Connect sync is healthy and Hybrid Join is confirmed, you can have 40 devices enrolled in under a week. I've done this exact project — it's a 2-week engagement, not a 2-month one.
+
+### Intune Automated App Deployment (Win32 + Dynamic Groups)
+**Scenario:** Post-enrollment, devices have no standardized software. Need a "Gold Standard" app bundle that deploys to existing fleet AND automatically to any future device.
+
+**Strategy: "Store-First & Win32-Wrapped"**
+- Use Win32 App Model (not LOB) for complex logic, custom detection, and "Required" install intent
+- Dynamic Device Groups auto-target any managed Windows device — current and future
+- Enterprise App Catalog for automated third-party patching (Chrome, Adobe)
+
+**Phase I — App Inventory & Packaging:**
+- Identify "Core 5" apps (Office 365, Chrome, Adobe, Zoom, VPN client)
+- Convert installers to .intunewin format using Microsoft Win32 Content Prep Tool
+- Write PowerShell detection scripts per app — prevents "Install Loop" where Intune tries to reinstall existing software
+- Example detection: Check registry for app version, check file path existence
+
+**Phase II — Dynamic Group Engineering:**
+- Create Entra Dynamic Device Group: PRD-Windows-Managed-All
+- Query: (device.deviceManagementAppId -eq "0000000a-0000-0000-c000-000000000000") targets only Intune-managed Windows devices
+- Any new machine joining the tenant is automatically scoped for apps
+
+**Phase III — Deployment:**
+- Assign all apps as "Required" to the dynamic group
+- Configure BITS (Background Intelligent Transfer Service) for bandwidth control during rollout
+- Stagger deployment: pilot 3 machines, then full fleet
+
+**Phase IV — Enrollment Status Page (ESP):**
+- Block desktop access for new machines until Core App Bundle is fully installed
+- Ensures new employees cannot reach desktop without security tools and Office
+
+**Pricing:** $2,500 fixed (packaging + groups + ESP). Combined with enrollment: $5,300 total.
+**Timeline:** 3 weeks (Week 1: packaging, Week 2: pilot, Week 3: production rollout)
+**Key lesson:** The Win32 app model with custom detection logic is non-negotiable for production deployments. Simple LOB installers cause install loops and lack version checking. Dynamic groups are what make this "set and forget" — you build it once and every future device gets the full stack automatically.
+
+### Intune Security Hardening + CIS Compliance + Conditional Access (Third-Party EDR: SentinelOne/Huntress)
+**Scenario:** Devices enrolled and apps deployed but zero security baselines, zero compliance enforcement, zero Zero Trust. Client runs SentinelOne + Huntress EDR (NOT Defender for Endpoint).
+
+**Challenge:** Intune does not natively report health of third-party EDRs. Without custom compliance, a device with disabled SentinelOne would still show "Compliant" — critical gap.
+
+**Phase I — Advanced Compliance Policy:**
+- Minimum OS build: Windows 11 23H2 (block end-of-life versions)
+- Patch level: must be current within 7-day grace period
+- BitLocker: mandatory XTS-AES 256-bit encryption, require TPM 2.0
+- Secure Boot + Code Integrity enabled at UEFI level
+- Password policy: minimum length, complexity, max inactivity lockout (CIS aligned)
+
+**Phase II — Custom EDR Compliance (the differentiator):**
+- PowerShell Discovery Script deployed via Intune, runs every 8 hours:
+  - Checks SentinelOne service status (Running/Stopped) + agent version
+  - Checks Huntress agent status + communication health
+- JSON Compliance Definition uploaded to Intune:
+  - If SentinelOneActive: False OR HuntressActive: False => device instantly Non-Compliant
+- This is the ONLY way to integrate third-party EDR health into Intune compliance
+
+**Phase III — CIS Level 1 OS Hardening (300+ settings via Settings Catalog):**
+- Disable legacy protocols: LLMNR, NetBIOS over TCP/IP, SMBv1
+- Enforce UAC to always notify on secure desktop
+- Disable risky services: Remote Registry, Xbox services on corporate devices
+- Harden Edge: disable password saving, enforce HTTPS-only
+- Account protection: disable convenience PIN, enforce Windows Hello for Business
+- Defender for Endpoint settings set to "Not Configured" to avoid conflicts with SentinelOne
+
+**Phase IV — Conditional Access (Zero Trust gate):**
+- Policy: All Users accessing All Cloud Apps (Outlook, Teams, SharePoint) must have Compliant device
+- Block legacy authentication (IMAP/POP3) — bypasses MFA and compliance
+- Deploy in Report-Only mode first (7-14 days) then enforce
+- Effect: disabled SentinelOne => Non-Compliant => blocked from email/Teams immediately
+
+**Pricing:** $6,500 fixed ($2,200 compliance + $1,800 EDR scripting + $2,500 CIS/CA)
+**Timeline:** 3 weeks (Week 1: policy design + script dev, Week 2: deploy in audit mode, Week 3: enforce)
+**Key lesson:** Custom compliance scripts are the only way to close the third-party EDR gap in Intune. Most implementations miss this entirely — they deploy SentinelOne but never verify it is actually running. The PowerShell + JSON approach gives you real-time health tracking with automatic enforcement via Conditional Access.
+
+### Local AD Decommission + Check Point Harmony SASE Modernization
+**Scenario:** Final phase of cloud-first journey. 40 Hybrid Joined devices still tethered to 2 on-prem DCs. Legacy VPN for remote users. Goal: go fully cloud-native.
+
+**Critical rule:** NEVER just unjoin from AD — it breaks user profiles. Must use migration tooling.
+
+**Phase I — Dependency Remediation (the prep work most people skip):**
+- DNS: migrate internal DNS records (printers, legacy apps) to Harmony SASE DNS proxy
+- Data: verify OneDrive KFM is 100% synced — no data in local AD-based home drives
+- Service accounts: audit any local services using AD accounts, migrate to cloud-native or Entra ID Managed Identities
+- Group Policy audit: document all GPOs currently applied, map to equivalent Intune policies
+
+**Phase II — Check Point Harmony Connect SASE:**
+- Replace legacy VPN entirely — provides "Virtual Office" experience
+- Tenant setup in Harmony Connect cloud dashboard
+- Push agent to all 40 machines via Intune (Required install)
+- Deploy Harmony Connector (lightweight VM) for secure access to any remaining on-prem resources (NAS, specialized DB, file shares) without traditional VPN
+- All DNS resolution goes through SASE — local DNS servers no longer needed
+
+**Phase III — Identity Transformation (the critical phase):**
+- Profile migration using ForensiT User Profile Wizard — converts Hybrid profile to Cloud-Only Entra ID profile without data loss
+- Disjoin machines from local domain
+- Verify Entra ID Join only (dsregcmd /status: AzureAdJoined: YES, DomainJoined: NO)
+- Configure Windows Hello for Business — users log in with M365 UPN (user@firm.com)
+
+**Phase IV — DC Decommission:**
+- Remove 40 computer objects from local AD
+- Disable Microsoft Entra Connect (sync no longer needed — cloud is authoritative)
+- Power down and retire 2 Domain Controllers
+- Update documentation and emergency procedures
+
+**Pricing:** $12,700 fixed ($3,500 dependency resolution + $4,200 SASE setup + $5,000 workstation transformation)
+**Recurring:** Harmony Connect SASE ~$10-15/user/mo (~$600/mo for 40 users)
+**Timeline:** 5 weeks (Week 1-2: dependency audit + SASE build, Week 3: pilot 5 users, Week 4: batch migrate 35, Week 5: DC decommission + sign-off)
+**Key lesson:** The dependency remediation phase is where most AD decommission projects fail. People rush to unjoin without checking DNS records, service accounts, GPO dependencies, and data sync status. Spend the time upfront — it saves you from a 2 AM emergency call when someone cannot print or access a legacy app. ForensiT is essential for profile migration — without it, users lose their desktop, favorites, and app settings.
 
 ## SMART QUALIFICATION
 After 3–4 substantive exchanges in a conversation (not counting greetings or clarifications), naturally weave in qualifying questions to size the engagement. Do this conversationally — not as a rigid checklist. Pick the 2–3 most relevant from:
