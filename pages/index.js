@@ -689,6 +689,9 @@ export default function App() {
   const [language, setLanguage] = useState("en");
   const [showROI, setShowROI] = useState(false);
   const [showPortal, setShowPortal] = useState(false);
+  const [showSecureScore, setShowSecureScore] = useState(false);
+  const [secureScoreData, setSecureScoreData] = useState(null);
+  const [secureScoreLoading, setSecureScoreLoading] = useState(false);
   const recognitionRef = useRef(null);
 
   const bottomRef = useRef(null);
@@ -729,6 +732,14 @@ export default function App() {
       s.src = "/_vercel/insights/script.js";
       s.defer = true;
       document.head.appendChild(s);
+    }
+
+    /* Load MSAL.js for Secure Score Scanner */
+    if (!document.querySelector('script[src*="msal-browser"]')) {
+      const ms = document.createElement("script");
+      ms.src = "https://alcdn.msauth.net/browser/2.38.0/js/msal-browser-2.38.0.min.js";
+      ms.defer = true;
+      document.head.appendChild(ms);
     }
 
     /* PWA: Add manifest link */
@@ -916,6 +927,63 @@ export default function App() {
       alert("Failed to read file. Please try again.");
     }
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  /* Secure Score Scanner */
+  const MSAL_CONFIG = {
+    auth: {
+      clientId: "YOUR_APP_CLIENT_ID", /* Replace with your Entra ID App Registration Client ID */
+      authority: "https://login.microsoftonline.com/common",
+      redirectUri: typeof window !== "undefined" ? window.location.origin : "",
+    },
+    cache: { cacheLocation: "sessionStorage" },
+  };
+
+  const checkSecureScore = async () => {
+    if (!window.msal) { alert("Microsoft authentication library is loading. Please try again in a few seconds."); return; }
+    setSecureScoreLoading(true);
+    setShowSecureScore(true);
+    try {
+      const msalInstance = new window.msal.PublicClientApplication(MSAL_CONFIG);
+      await msalInstance.initialize();
+      const loginResponse = await msalInstance.loginPopup({
+        scopes: ["SecurityEvents.Read.All"],
+        prompt: "select_account",
+      });
+      const tokenResponse = await msalInstance.acquireTokenSilent({
+        scopes: ["SecurityEvents.Read.All"],
+        account: loginResponse.account,
+      });
+      const res = await fetch("https://graph.microsoft.com/v1.0/security/secureScores?$top=1", {
+        headers: { Authorization: "Bearer " + tokenResponse.accessToken },
+      });
+      if (!res.ok) throw new Error("Graph API " + res.status);
+      const data = await res.json();
+      const score = data.value?.[0];
+      if (score) {
+        const result = {
+          currentScore: score.currentScore,
+          maxScore: score.maxScore,
+          percentage: Math.round((score.currentScore / score.maxScore) * 100),
+          tenant: loginResponse.account?.username?.split("@")[1] || "Your tenant",
+          controls: (score.controlScores || []).filter(c => c.score < c.scoreInPercentage).sort((a,b) => b.scoreInPercentage - a.scoreInPercentage).slice(0, 8).map(c => ({
+            name: c.controlName, score: c.score, max: c.scoreInPercentage, category: c.controlCategory,
+          })),
+        };
+        setSecureScoreData(result);
+        trackEvent("secure_score_check", { score: result.percentage });
+      }
+    } catch (err) {
+      if (err.errorCode === "user_cancelled") { setShowSecureScore(false); }
+      else { setSecureScoreData({ error: err.message || "Failed to retrieve Secure Score. Ensure your admin has granted consent." }); }
+    } finally { setSecureScoreLoading(false); }
+  };
+
+  const sendSecureScoreToChat = () => {
+    if (!secureScoreData || secureScoreData.error) return;
+    const summary = `## My Microsoft Secure Score Results\n**Tenant:** ${secureScoreData.tenant}\n**Score:** ${secureScoreData.currentScore}/${secureScoreData.maxScore} (${secureScoreData.percentage}%)\n\n**Top improvement areas:**\n${secureScoreData.controls.map(c => "- " + c.name + " (" + c.category + ") — " + c.score + "/" + c.max).join("\n")}\n\nPlease analyze my Secure Score and give me a prioritized action plan to improve it. Focus on quick wins first.`;
+    send(summary);
+    setShowSecureScore(false);
   };
 
   const stopGeneration = () => {
@@ -1154,6 +1222,20 @@ export default function App() {
               </div>
             ))}
           </div>
+
+          {/* Verification Badges */}
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <a href="https://learn.microsoft.com/en-us/users/pete-matsoukas/transcript/7xxlgcyop8k6kmp" target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("verify_microsoft")}
+              style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(0,120,212,0.08)",border:"1px solid rgba(0,120,212,0.25)",borderRadius:10,padding:"10px 12px",textDecoration:"none",cursor:"pointer",transition:"all .15s"}}>
+              <svg width="16" height="16" viewBox="0 0 23 23" fill="none"><rect width="11" height="11" fill="#f25022"/><rect x="12" width="11" height="11" fill="#7fba00"/><rect y="12" width="11" height="11" fill="#00a4ef"/><rect x="12" y="12" width="11" height="11" fill="#ffb900"/></svg>
+              <span style={{fontSize:12,fontWeight:700,color:"#38bdf8"}}>Verify Microsoft Certs</span>
+            </a>
+            <a href="https://www.credly.com/users/pmatsoukas" target="_blank" rel="noopener noreferrer" onClick={() => trackEvent("verify_credly")}
+              style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(255,111,0,0.06)",border:"1px solid rgba(255,111,0,0.2)",borderRadius:10,padding:"10px 12px",textDecoration:"none",cursor:"pointer",transition:"all .15s"}}>
+              <span style={{fontSize:16}}>🏅</span>
+              <span style={{fontSize:12,fontWeight:700,color:"#ff6f00"}}>View Credly Badges</span>
+            </a>
+          </div>
         </div>
 
         {/* Divider */}
@@ -1280,6 +1362,12 @@ export default function App() {
             <span>📊</span>{!mobile && " ROI Calc"}
           </button>
 
+          {/* Secure Score */}
+          <button onClick={checkSecureScore}
+            style={{background:"rgba(255,111,0,0.06)",border:"1px solid rgba(255,111,0,0.2)",borderRadius:10,padding:mobile?"0 8px":"6px 14px",color:"#ff6f00",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",flexShrink:0,minHeight:36,whiteSpace:"nowrap"}}>
+            <span>🛡️</span>{!mobile && " Secure Score"}
+          </button>
+
           {/* My Projects */}
           <button onClick={() => { setShowPortal(true); trackEvent("portal_open"); }}
             style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:mobile?"0 8px":"6px 14px",color:"#7ab2d4",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",flexShrink:0,minHeight:36,whiteSpace:"nowrap"}}>
@@ -1372,20 +1460,41 @@ export default function App() {
                           <div style={{background:isUser?"linear-gradient(135deg,#0d2d6e,#0a1e4a)":"#1e2e42",border:isUser?"1px solid rgba(122,178,212,0.25)":"1px solid rgba(122,178,212,0.12)",borderRadius:isUser?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"11px 14px",boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
                             {isUser ? <p style={{color:"#c8dff0",fontSize:15,lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{displayContent}</p> : <Msg content={displayContent}/>}
                           </div>
-                          {/* Voice read-aloud button for assistant messages */}
+                          {/* Copy + Listen buttons for assistant messages */}
                           {!isUser && displayContent.length > 20 && (
-                            <button
-                              onClick={() => speakMessage(displayContent, idx)}
-                              title={speakingIdx === idx ? "Stop reading" : "Read aloud"}
-                              style={{
-                                marginTop:4,background:"none",border:"none",
-                                cursor:"pointer",fontSize:15,padding:"4px 8px",
-                                color:speakingIdx===idx?"#ef4444":"#3a5a72",
-                                display:"flex",alignItems:"center",gap:5,
-                                borderRadius:6,transition:"all .15s",
-                              }}>
-                              {speakingIdx === idx ? "⏹️ Stop" : "🔊 Listen"}
-                            </button>
+                            <div style={{display:"flex",gap:4,marginTop:4}}>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(displayContent).then(() => {
+                                    const btn = document.getElementById("copy-btn-"+idx);
+                                    if (btn) { btn.textContent = "✅ Copied"; setTimeout(() => { btn.textContent = "📋 Copy"; }, 2000); }
+                                  });
+                                  trackEvent("copy_message");
+                                }}
+                                id={"copy-btn-"+idx}
+                                title="Copy to clipboard"
+                                style={{
+                                  background:"none",border:"none",
+                                  cursor:"pointer",fontSize:15,padding:"4px 8px",
+                                  color:"#3a5a72",
+                                  display:"flex",alignItems:"center",gap:5,
+                                  borderRadius:6,transition:"all .15s",
+                                }}>
+                                📋 Copy
+                              </button>
+                              <button
+                                onClick={() => speakMessage(displayContent, idx)}
+                                title={speakingIdx === idx ? "Stop reading" : "Read aloud"}
+                                style={{
+                                  background:"none",border:"none",
+                                  cursor:"pointer",fontSize:15,padding:"4px 8px",
+                                  color:speakingIdx===idx?"#ef4444":"#3a5a72",
+                                  display:"flex",alignItems:"center",gap:5,
+                                  borderRadius:6,transition:"all .15s",
+                                }}>
+                                {speakingIdx === idx ? "⏹️ Stop" : "🔊 Listen"}
+                              </button>
+                            </div>
                           )}
                           {hasDocument && (
                             <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
@@ -1531,6 +1640,12 @@ export default function App() {
                       🎯 Build My Training Plan
                     </button>
                   )}
+                  <button
+                    onClick={() => { trackEvent("weekly_take"); send("Generate Pete's Weekly Take — search for the latest trending Microsoft, Azure, and M365 news from the past 7 days and write a blog post for www.techbypete.com in Pete's voice."); }}
+                    disabled={loading}
+                    style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:10,padding:"10px 12px",color:"#a855f7",fontSize:12,fontWeight:600,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,whiteSpace:"nowrap",flexShrink:0,opacity:loading?0.5:1}}>
+                    ✍️ Weekly Take
+                  </button>
                   <a
                     href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
                     onClick={() => trackEvent("calendly_click", { source: "input_bar" })}
@@ -1621,6 +1736,68 @@ export default function App() {
 
         {/* ROI Calculator Modal */}
         {showROI && <ROICalculator onClose={() => setShowROI(false)} mobile={mobile}/>}
+
+        {/* Secure Score Modal */}
+        {showSecureScore && (
+          <>
+            <div onClick={() => setShowSecureScore(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)"}}/>
+            <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,width:mobile?"calc(100vw - 24px)":"min(520px, 90vw)",maxHeight:"85vh",overflowY:"auto",background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",border:"2px solid rgba(255,111,0,0.3)",borderRadius:20,boxShadow:"0 24px 80px rgba(0,0,0,0.8)",padding:"24px",animation:"fadeUp 0.25s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+                <span style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>🛡️ Microsoft Secure Score</span>
+                <button onClick={() => setShowSecureScore(false)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>×</button>
+              </div>
+
+              {secureScoreLoading && (
+                <div style={{textAlign:"center",padding:"40px 0"}}>
+                  <Dots/>
+                  <p style={{color:"#7ab2d4",fontSize:14,marginTop:12}}>Authenticating with Microsoft...</p>
+                </div>
+              )}
+
+              {secureScoreData?.error && (
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <p style={{color:"#ef4444",fontSize:14,marginBottom:12}}>⚠️ {secureScoreData.error}</p>
+                  <p style={{color:"#4a6a82",fontSize:13,lineHeight:1.6}}>This feature requires your Microsoft 365 tenant admin to grant consent. Contact Pete for assistance setting this up.</p>
+                  <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" style={{display:"inline-block",marginTop:12,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",borderRadius:10,padding:"10px 20px",color:"#fff",fontSize:13,fontWeight:700,textDecoration:"none"}}>📞 Get Help from Pete</a>
+                </div>
+              )}
+
+              {secureScoreData && !secureScoreData.error && (
+                <>
+                  <div style={{textAlign:"center",marginBottom:20}}>
+                    <div style={{fontSize:52,fontWeight:700,color:secureScoreData.percentage>=80?"#34d399":secureScoreData.percentage>=60?"#fbbf24":"#ef4444",lineHeight:1}}>{secureScoreData.percentage}%</div>
+                    <div style={{fontSize:14,color:"#94a3b8",marginTop:4}}>{secureScoreData.currentScore} / {secureScoreData.maxScore} points</div>
+                    <div style={{fontSize:12,color:"#4a6a82",marginTop:2}}>{secureScoreData.tenant}</div>
+                  </div>
+
+                  {secureScoreData.controls.length > 0 && (
+                    <div style={{marginBottom:16}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}}>Top Improvement Areas</div>
+                      {secureScoreData.controls.map((c,i) => (
+                        <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid rgba(122,178,212,0.08)"}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,color:"#e2e8f0",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div>
+                            <div style={{fontSize:11,color:"#4a6a82"}}>{c.category}</div>
+                          </div>
+                          <div style={{fontSize:12,fontWeight:700,color:"#ff6f00",flexShrink:0}}>{c.score}/{c.max}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={sendSecureScoreToChat} style={{flex:1,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:10,padding:"12px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      📋 Get Action Plan from Pete's AI
+                    </button>
+                    <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px",color:"#7ab2d4",fontSize:13,fontWeight:600,textDecoration:"none",cursor:"pointer",fontFamily:"inherit"}}>
+                      📞 Discuss with Pete
+                    </a>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Client Portal Modal */}
         {showPortal && (
