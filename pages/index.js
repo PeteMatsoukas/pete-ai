@@ -1,3 +1,4 @@
+// TechByPete AI Agent v2.4 — April 2026
 import { useState, useRef, useEffect } from "react";
 
 const CONTACT = {
