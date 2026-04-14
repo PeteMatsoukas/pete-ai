@@ -1027,7 +1027,7 @@ export default function App() {
                           <div style={{fontSize:mobile?24:30,marginBottom:8,flexShrink:0}}>{c.icon}</div>
                           <div className="ct" style={{color:"#e2e8f0",fontWeight:600,fontSize:mobile?14:16,marginBottom:5,lineHeight:1.35}}>{c.q}</div>
                           <div style={{color:"#4a6a82",fontSize:mobile?13:14,lineHeight:1.4}}>{c.desc}</div>
-                          <div style={{marginTop:8,fontSize:12,color:"#2a4a62",fontStyle:"italic"}}>🎓 Delivered by certified MCT · Pete Matsoukas</div>
+                          <div style={{marginTop:10,fontSize:12,color:"#38bdf8",fontWeight:600,fontStyle:"normal",background:"rgba(56,189,248,0.08)",border:"1px solid rgba(56,189,248,0.2)",borderRadius:8,padding:"6px 10px",display:"inline-flex",alignItems:"center",gap:6}}>🎓 Delivered by certified MCT · <strong style={{color:"#f1f5f9"}}>Pete Matsoukas</strong></div>
                         </button>
                       ))}
                     </div>
