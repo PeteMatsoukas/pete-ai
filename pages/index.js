@@ -1,4 +1,4 @@
-// TechByPete AI Agent v2.4 — April 2026
+// TechByPete AI Agent v2.5 — April 2026
 import { useState, useRef, useEffect } from "react";
 
 const CONTACT = {
@@ -432,6 +432,8 @@ export default function App() {
   const [leadDocContent, setLeadDocContent] = useState("");
   const [listening, setListening] = useState(false);
   const [speakingIdx, setSpeakingIdx] = useState(null);
+  const [deferredInstall, setDeferredInstall] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const recognitionRef = useRef(null);
 
   const bottomRef = useRef(null);
@@ -473,7 +475,40 @@ export default function App() {
       document.head.appendChild(s);
     }
 
-    return () => window.removeEventListener("resize", check);
+    /* PWA: Add manifest link */
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const link = document.createElement("link");
+      link.rel = "manifest";
+      link.href = "/manifest.json";
+      document.head.appendChild(link);
+    }
+
+    /* PWA: Add theme-color meta */
+    if (!document.querySelector('meta[name="theme-color"]')) {
+      const meta = document.createElement("meta");
+      meta.name = "theme-color";
+      meta.content = "#0078d4";
+      document.head.appendChild(meta);
+    }
+
+    /* PWA: Register service worker */
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    /* PWA: Capture install prompt */
+    const handleInstall = (e) => {
+      e.preventDefault();
+      setDeferredInstall(e);
+      const dismissed = localStorage.getItem("techbypete_install_dismissed");
+      if (!dismissed) setShowInstallBanner(true);
+    };
+    window.addEventListener("beforeinstallprompt", handleInstall);
+
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("beforeinstallprompt", handleInstall);
+    };
   }, []);
 
   /* Persist sessions to localStorage on every change */
@@ -1259,6 +1294,37 @@ export default function App() {
               }
             }}
           />
+        )}
+
+        {/* PWA Install — small floating pill, bottom-right, above input */}
+        {showInstallBanner && deferredInstall && (
+          <div style={{
+            position:"fixed",bottom:mobile?140:120,right:16,zIndex:950,
+            background:"linear-gradient(135deg,#0078d4,#0ea5e9)",
+            padding:"10px 14px",display:"flex",alignItems:"center",gap:8,
+            borderRadius:14,boxShadow:"0 4px 20px rgba(0,0,0,0.4)",
+            animation:"fadeUp 0.3s ease",maxWidth:260,
+          }}>
+            <div style={{flex:1}}>
+              <div style={{color:"#fff",fontSize:11,fontWeight:600,lineHeight:1.4}}>📱 Install TechByPete AI</div>
+              <div style={{color:"rgba(255,255,255,0.7)",fontSize:10,marginTop:2}}>Quick access anytime</div>
+            </div>
+            <button onClick={async () => {
+              trackEvent("pwa_install");
+              deferredInstall.prompt();
+              const result = await deferredInstall.userChoice;
+              if (result.outcome === "accepted") setShowInstallBanner(false);
+              setDeferredInstall(null);
+            }} style={{background:"#fff",color:"#0078d4",border:"none",borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>
+              Install
+            </button>
+            <button onClick={() => {
+              setShowInstallBanner(false);
+              localStorage.setItem("techbypete_install_dismissed", "1");
+            }} style={{position:"absolute",top:-6,right:-6,background:"#1e2e42",border:"2px solid #0078d4",color:"#7ab2d4",cursor:"pointer",fontSize:10,width:20,height:20,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",padding:0,lineHeight:1}}>
+              ×
+            </button>
+          </div>
         )}
       </div>
     </>

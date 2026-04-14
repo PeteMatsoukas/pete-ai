@@ -1,4 +1,49 @@
-// TechByPete AI Agent v2.4 — April 2026
+// TechByPete AI Agent v2.5 — April 2026
+import fs from "fs";
+import path from "path";
+
+/* --- RAG Knowledge Base --- */
+const KNOWLEDGE_DIR = path.join(process.cwd(), "knowledge");
+
+function loadKnowledgeFiles() {
+  try {
+    if (!fs.existsSync(KNOWLEDGE_DIR)) return [];
+    const files = fs.readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith(".md") && f !== "README.md");
+    return files.map(f => {
+      const content = fs.readFileSync(path.join(KNOWLEDGE_DIR, f), "utf-8");
+      const title = content.match(/^#\s+(.+)/m)?.[1] || f.replace(".md", "");
+      return { filename: f, title, content };
+    });
+  } catch { return []; }
+}
+
+function searchKnowledge(query, maxResults = 3) {
+  const docs = loadKnowledgeFiles();
+  if (docs.length === 0) return "";
+
+  /* Extract keywords — strip common words */
+  const stopWords = new Set(["the","a","an","is","are","was","were","be","been","being","have","has","had","do","does","did","will","would","could","should","may","might","can","shall","to","of","in","for","on","with","at","by","from","as","into","about","between","through","during","before","after","above","below","up","down","out","off","over","under","that","this","these","those","it","its","i","we","you","they","he","she","my","our","your","their","what","how","when","where","which","who","whom","why","not","no","nor","if","or","and","but","so","than","too","very","just","also","like","need","want","help","please","me","us"]);
+  const words = query.toLowerCase().split(/\W+/).filter(w => w.length > 2 && !stopWords.has(w));
+  if (words.length === 0) return "";
+
+  /* Score each doc by keyword frequency */
+  const scored = docs.map(doc => {
+    const lower = doc.content.toLowerCase();
+    let score = 0;
+    for (const word of words) {
+      const matches = lower.split(word).length - 1;
+      score += matches;
+    }
+    return { ...doc, score };
+  }).filter(d => d.score > 0).sort((a, b) => b.score - a.score).slice(0, maxResults);
+
+  if (scored.length === 0) return "";
+
+  return "\n\n## RELEVANT KNOWLEDGE BASE DOCUMENTS\nThe following documents from Pete's knowledge base are relevant to this conversation. Reference them naturally — do not mention that you searched a database.\n\n" +
+    scored.map(d => `### ${d.title}\n${d.content}`).join("\n\n---\n\n");
+}
+/* --- End RAG --- */
+
 const SYSTEM = `You are Pete Matsoukas — a Senior IT Solutions Architect, Microsoft Certified Trainer (MCT), and the founder of TechByPete. You are not a generic AI assistant. You think, speak, and architect solutions exactly as Pete does with real clients and engineering teams. You are experienced, opinionated, and decisive — having designed and delivered production infrastructure across on-premises, Azure, M365, and hybrid Microsoft environments for over 15 years.
 
 ## IDENTITY & CREDENTIALS
@@ -505,10 +550,17 @@ When starting a new training conversation, guide with:
 
 Always end training discussions with: "Want me to adjust the pace, add more labs, or book a mentoring session with Pete?"`;
 
-function buildSystemPrompt(mode) {
+function buildSystemPrompt(mode, userQuery = "") {
   let prompt = SYSTEM;
   if (mode === "training") prompt += TRAINING_MODE;
   else prompt += PROJECTS_MODE;
+
+  /* RAG: search knowledge base and inject relevant docs */
+  if (userQuery) {
+    const knowledgeContext = searchKnowledge(userQuery);
+    if (knowledgeContext) prompt += knowledgeContext;
+  }
+
   return prompt;
 }
 
@@ -565,7 +617,7 @@ async function callAzurePricing(input) {
   }
 }
 
-async function callAnthropic(messages, stream = false, mode = "projects") {
+async function callAnthropic(messages, stream = false, mode = "projects", userQuery = "") {
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -577,7 +629,7 @@ async function callAnthropic(messages, stream = false, mode = "projects") {
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
       stream,
-      system: buildSystemPrompt(mode),
+      system: buildSystemPrompt(mode, userQuery),
       messages: messages,
       tools: TOOLS
     })
@@ -689,6 +741,11 @@ export default async function handler(req, res) {
 
   const activeMode = mode === "training" ? "training" : "projects";
 
+  /* Extract latest user message text for RAG search */
+  const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+  const userQuery = typeof lastUserMsg?.content === "string" ? lastUserMsg.content :
+    (Array.isArray(lastUserMsg?.content) ? lastUserMsg.content.find(p => p.type === "text")?.text : "") || "";
+
   /* Set SSE headers — disable all buffering */
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -705,7 +762,7 @@ export default async function handler(req, res) {
     const MAX_TOOL_ROUNDS = 5;
 
     while (attempts < MAX_TOOL_ROUNDS) {
-      const response = await callAnthropic(currentMessages, true, activeMode);
+      const response = await callAnthropic(currentMessages, true, activeMode, userQuery);
 
       if (!response.ok) {
         const errText = await response.text();
