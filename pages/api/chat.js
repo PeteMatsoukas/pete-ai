@@ -1,20 +1,19 @@
 // TechByPete AI Agent v2.5 — April 2026
-import fs from "fs";
-import path from "path";
 
 /* --- RAG Knowledge Base --- */
-const KNOWLEDGE_DIR = path.join(process.cwd(), "knowledge");
-
 function loadKnowledgeFiles() {
   try {
-    if (!fs.existsSync(KNOWLEDGE_DIR)) return [];
-    const files = fs.readdirSync(KNOWLEDGE_DIR).filter(f => f.endsWith(".md") && f !== "README.md");
+    const fs = require("fs");
+    const path = require("path");
+    const dir = path.join(process.cwd(), "knowledge");
+    if (!fs.existsSync(dir)) return [];
+    const files = fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "README.md");
     return files.map(f => {
-      const content = fs.readFileSync(path.join(KNOWLEDGE_DIR, f), "utf-8");
+      const content = fs.readFileSync(path.join(dir, f), "utf-8");
       const title = content.match(/^#\s+(.+)/m)?.[1] || f.replace(".md", "");
       return { filename: f, title, content };
     });
-  } catch { return []; }
+  } catch (e) { console.warn("RAG load error:", e.message); return []; }
 }
 
 function searchKnowledge(query, maxResults = 3) {
@@ -521,11 +520,22 @@ async function readAndForwardStream(response, clientRes) {
           if (typeof clientRes.flush === "function") clientRes.flush();
         }
 
-        /* Track content blocks for potential tool loop */
+        /* Send keepalive during server-side tool execution (web search) */
+        if (evt.type === "content_block_start" && (evt.content_block?.type === "server_tool_use" || evt.content_block?.type === "web_search_tool_result")) {
+          clientRes.write(": keepalive\n\n");
+          if (typeof clientRes.flush === "function") clientRes.flush();
+        }
+
+        /* Track only text and custom tool_use blocks (not server-side tools) */
         if (evt.type === "content_block_start") {
-          currentBlock = { ...evt.content_block };
-          if (currentBlock.type === "text") currentBlock.text = "";
-          if (currentBlock.type === "tool_use") currentBlock.input = "";
+          const blockType = evt.content_block?.type;
+          if (blockType === "text" || blockType === "tool_use") {
+            currentBlock = { ...evt.content_block };
+            if (blockType === "text") currentBlock.text = "";
+            if (blockType === "tool_use") currentBlock.input = "";
+          } else {
+            currentBlock = null;
+          }
         }
 
         if (evt.type === "content_block_delta") {
@@ -565,6 +575,7 @@ export const config = {
   api: {
     responseLimit: false,
   },
+  maxDuration: 60,
 };
 
 export default async function handler(req, res) {
@@ -606,6 +617,7 @@ export default async function handler(req, res) {
 
       if (!response.ok) {
         const errText = await response.text();
+        console.error("Anthropic API error:", response.status, errText);
         res.write("data: " + JSON.stringify({ type: "error", message: errText }) + "\n\n");
         break;
       }
