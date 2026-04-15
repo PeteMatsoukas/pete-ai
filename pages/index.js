@@ -739,14 +739,6 @@ export default function App() {
       document.head.appendChild(s);
     }
 
-    /* Load MSAL.js for Secure Score Scanner */
-    if (!document.querySelector('script[src*="msal-browser"]')) {
-      const ms = document.createElement("script");
-      ms.src = "https://alcdn.msauth.net/browser/2.38.0/js/msal-browser-2.38.0.min.js";
-      ms.defer = true;
-      document.head.appendChild(ms);
-    }
-
     /* PWA: Add manifest link */
     if (!document.querySelector('link[rel="manifest"]')) {
       const link = document.createElement("link");
@@ -944,10 +936,34 @@ export default function App() {
     cache: { cacheLocation: "sessionStorage" },
   };
 
+  const loadMSAL = () => new Promise((resolve, reject) => {
+    if (window.msal) { resolve(); return; }
+    const urls = [
+      "https://alcdn.msauth.net/browser/2.38.3/js/msal-browser-2.38.3.min.js",
+      "https://alcdn.msauth.net/browser/2.38.0/js/msal-browser-2.38.0.min.js",
+    ];
+    let idx = 0;
+    const tryLoad = () => {
+      if (idx >= urls.length) { reject(new Error("Failed to load Microsoft authentication library.")); return; }
+      const s = document.createElement("script");
+      s.src = urls[idx];
+      s.onload = () => resolve();
+      s.onerror = () => { idx++; tryLoad(); };
+      document.head.appendChild(s);
+    };
+    tryLoad();
+  });
+
   const checkSecureScore = async () => {
-    if (!window.msal) { alert("Microsoft authentication library is loading. Please try again in a few seconds."); return; }
     setSecureScoreLoading(true);
     setShowSecureScore(true);
+    try {
+      await loadMSAL();
+    } catch (err) {
+      setSecureScoreData({ error: "Could not load Microsoft authentication. Please disable ad blockers and try again." });
+      setSecureScoreLoading(false);
+      return;
+    }
     try {
       const msalInstance = new window.msal.PublicClientApplication(MSAL_CONFIG);
       await msalInstance.initialize();
