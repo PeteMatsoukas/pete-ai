@@ -8,6 +8,7 @@ const CONTACT = {
 };
 
 const CALENDLY_URL = "https://calendly.com/pilot3282/30min";
+const MSAL_CLIENT_ID = "f3c437ef-398a-4964-bd1e-fbe2ba2782a6";
 
 const LANG_OPTIONS = [
   {code:"en",label:"English",flag:"🇬🇧"},
@@ -936,7 +937,7 @@ export default function App() {
   /* Secure Score Scanner */
   const MSAL_CONFIG = {
     auth: {
-      clientId: "YOUR_APP_CLIENT_ID", /* Replace with your Entra ID App Registration Client ID */
+      clientId: MSAL_CLIENT_ID,
       authority: "https://login.microsoftonline.com/common",
       redirectUri: typeof window !== "undefined" ? window.location.origin : "",
     },
@@ -979,7 +980,18 @@ export default function App() {
       }
     } catch (err) {
       if (err.errorCode === "user_cancelled") { setShowSecureScore(false); }
-      else { setSecureScoreData({ error: err.message || "Failed to retrieve Secure Score. Ensure your admin has granted consent." }); }
+      else {
+        let errorMsg = "Unable to retrieve your Secure Score.";
+        const errStr = (err.message || err.errorMessage || "").toLowerCase();
+        if (errStr.includes("consent") || errStr.includes("approval") || errStr.includes("admin")) {
+          errorMsg = "Your tenant admin needs to grant consent for this app first. Ask your Microsoft 365 Global Admin to visit the Secure Score Scanner and approve the permission request. This is a one-time step.";
+        } else if (errStr.includes("forbidden") || errStr.includes("403") || errStr.includes("authorization") || errStr.includes("insufficient")) {
+          errorMsg = "Your account doesn't have permission to view the Secure Score. You need the Security Reader or Global Admin role in your Microsoft 365 tenant. Ask your IT admin to assign this role to your account, or have them run the scan instead.";
+        } else {
+          errorMsg = err.message || "Failed to connect to Microsoft. Please try again.";
+        }
+        setSecureScoreData({ error: errorMsg });
+      }
     } finally { setSecureScoreLoading(false); }
   };
 
@@ -1807,7 +1819,12 @@ export default function App() {
               {secureScoreData?.error && (
                 <div style={{textAlign:"center",padding:"20px 0"}}>
                   <p style={{color:"#ef4444",fontSize:14,marginBottom:12}}>⚠️ {secureScoreData.error}</p>
-                  <p style={{color:"#4a6a82",fontSize:13,lineHeight:1.6}}>This feature requires your Microsoft 365 tenant admin to grant consent. Contact Pete for assistance setting this up.</p>
+                  <p style={{color:"#4a6a82",fontSize:13,lineHeight:1.6}}>
+                    <strong style={{color:"#7ab2d4"}}>Requirements:</strong><br/>
+                    • You need <strong style={{color:"#e2e8f0"}}>Security Reader</strong> or <strong style={{color:"#e2e8f0"}}>Global Admin</strong> role in your M365 tenant<br/>
+                    • Your tenant admin must grant consent the first time (one-time approval)<br/>
+                    • Contact Pete if you need help setting this up
+                  </p>
                   <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" style={{display:"inline-block",marginTop:12,background:"linear-gradient(135deg,#0078d4,#0ea5e9)",borderRadius:10,padding:"10px 20px",color:"#fff",fontSize:13,fontWeight:700,textDecoration:"none"}}>📞 Get Help from Pete</a>
                 </div>
               )}
