@@ -198,9 +198,14 @@ function Msg({ content }) {
   while (i < lines.length) {
     const l = lines[i];
     if (l.startsWith("```")) {
+      const lang = l.slice(3).trim().toLowerCase();
       const code = []; i++;
       while (i < lines.length && !lines[i].startsWith("```")) { code.push(lines[i]); i++; }
-      els.push(<pre key={k++} style={{background:"#0f1e35",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,padding:"12px 14px",overflowX:"auto",fontFamily:"monospace",fontSize:14,color:"#7ab2d4",margin:"10px 0",lineHeight:1.6}}><code>{code.join("\n")}</code></pre>);
+      if (lang === "mermaid") {
+        els.push(<MermaidDiagram key={k++} code={code.join("\n")} id={"d"+k}/>);
+      } else {
+        els.push(<pre key={k++} style={{background:"#0f1e35",border:"1px solid rgba(122,178,212,0.2)",borderRadius:8,padding:"12px 14px",overflowX:"auto",fontFamily:"monospace",fontSize:14,color:"#7ab2d4",margin:"10px 0",lineHeight:1.6}}><code>{code.join("\n")}</code></pre>);
+      }
       i++; continue;
     }
     if (l.includes("|") && lines[i+1]?.match(/^\|?[\s\-|]+\|?$/)) {
@@ -230,6 +235,227 @@ function Msg({ content }) {
     i++;
   }
   return <div>{els}</div>;
+}
+
+function MermaidDiagram({ code, id }) {
+  const ref = useRef(null);
+  const fullscreenRef = useRef(null);
+  const [error, setError] = useState(false);
+  const [rendered, setRendered] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [svgContent, setSvgContent] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panState = useRef({ dragging: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!code || code.trim().length < 20) return;
+
+    const render = async () => {
+      if (!window.mermaid) {
+        setTimeout(() => { if (!cancelled) render(); }, 500);
+        return;
+      }
+      try {
+        const diagramId = "mermaid-" + id + "-" + Math.random().toString(36).slice(2, 9);
+        const { svg } = await window.mermaid.render(diagramId, code.trim());
+        if (!cancelled) {
+          /* Inject max-width styling into SVG for responsive sizing */
+          const enhanced = svg.replace(/<svg /, '<svg style="max-width:100%;height:auto;min-width:600px;" ');
+          setSvgContent(enhanced);
+          setRendered(true);
+          setError(false);
+        }
+      } catch (err) {
+        if (!cancelled) { setError(true); setRendered(false); }
+      }
+    };
+
+    const timer = setTimeout(render, 500);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [code, id]);
+
+  useEffect(() => {
+    if (expanded) { setZoom(1); setPan({ x: 0, y: 0 }); }
+  }, [expanded]);
+
+  const downloadSVG = () => {
+    if (!svgContent) return;
+    const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "techbypete-architecture-" + Date.now() + ".svg";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPNG = async () => {
+    if (!svgContent) return;
+    try {
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = svgContent;
+      const svg = tempDiv.querySelector("svg");
+      if (!svg) return;
+
+      /* Get dimensions from viewBox or getBoundingClientRect */
+      const viewBox = svg.viewBox?.baseVal;
+      const width = viewBox?.width || svg.width?.baseVal?.value || 1200;
+      const height = viewBox?.height || svg.height?.baseVal?.value || 800;
+
+      /* Ensure SVG has explicit dimensions and xmlns */
+      svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      svg.setAttribute("width", width);
+      svg.setAttribute("height", height);
+
+      /* Serialize with inline styles to avoid external dependencies */
+      const serialized = new XMLSerializer().serializeToString(svg);
+
+      /* Use data URL instead of blob URL to avoid CORS taint */
+      const svgDataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(serialized);
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const scale = 3; /* 3x resolution */
+          const canvas = document.createElement("canvas");
+          canvas.width = width * scale;
+          canvas.height = height * scale;
+          const ctx = canvas.getContext("2d");
+          ctx.fillStyle = "#0a1525";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.scale(scale, scale);
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((pngBlob) => {
+            if (!pngBlob) { alert("Could not generate PNG. Try SVG download instead."); return; }
+            const pngUrl = URL.createObjectURL(pngBlob);
+            const a = document.createElement("a");
+            a.href = pngUrl; a.download = "techbypete-architecture-" + Date.now() + ".png";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(pngUrl);
+          }, "image/png");
+        } catch (err) {
+          console.warn("PNG export failed:", err);
+          alert("PNG export failed (likely due to icons). Use SVG download — it opens in any browser or design tool.");
+        }
+      };
+      img.onerror = () => {
+        alert("PNG export failed. Use SVG download instead.");
+      };
+      img.src = svgDataUrl;
+    } catch (err) {
+      console.warn("PNG export error:", err);
+      alert("PNG export failed. Use SVG download — it works everywhere.");
+    }
+  };
+
+  const copyCode = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = document.getElementById("copy-mermaid-" + id);
+      if (btn) { btn.textContent = "✅ Copied"; setTimeout(() => { btn.textContent = "📋 Code"; }, 2000); }
+    });
+  };
+
+  const handleWheel = (e) => {
+    if (!expanded) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setZoom(z => Math.max(0.3, Math.min(5, z + delta)));
+  };
+
+  const handleMouseDown = (e) => {
+    if (!expanded) return;
+    panState.current = { dragging: true, startX: e.clientX, startY: e.clientY, startPanX: pan.x, startPanY: pan.y };
+  };
+
+  const handleMouseMove = (e) => {
+    if (!panState.current.dragging) return;
+    setPan({
+      x: panState.current.startPanX + (e.clientX - panState.current.startX),
+      y: panState.current.startPanY + (e.clientY - panState.current.startY),
+    });
+  };
+
+  const handleMouseUp = () => { panState.current.dragging = false; };
+
+  if (error) {
+    return (
+      <div style={{background:"#0a1525",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"12px 14px",margin:"10px 0"}}>
+        <div style={{fontSize:12,color:"#ef4444",fontWeight:600,marginBottom:6}}>⚠️ Diagram code received (not yet rendered)</div>
+        <pre style={{background:"#0f1e35",color:"#7ab2d4",padding:"10px",borderRadius:6,fontSize:12,overflowX:"auto",margin:0,maxHeight:200}}><code>{code}</code></pre>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{margin:"12px 0",background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",border:"2px solid rgba(122,178,212,0.25)",borderRadius:12,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"rgba(122,178,212,0.05)",borderBottom:"1px solid rgba(122,178,212,0.12)",flexWrap:"wrap",gap:8}}>
+        <span style={{fontSize:11,fontWeight:700,color:"#7ab2d4",letterSpacing:"0.1em",textTransform:"uppercase",fontFamily:"'Rajdhani',sans-serif",display:"flex",alignItems:"center",gap:6}}>
+          📊 Architecture Diagram
+        </span>
+        {rendered && (
+          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+            <button onClick={() => setExpanded(true)} title="Open fullscreen with zoom" style={{background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:6,padding:"5px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:4}}>🔍 Open Fullscreen</button>
+            <button onClick={downloadPNG} title="Download as high-res PNG" style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:6,padding:"5px 10px",color:"#7ab2d4",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🖼️ PNG</button>
+            <button onClick={downloadSVG} title="Download as SVG" style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:6,padding:"5px 10px",color:"#7ab2d4",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📥 SVG</button>
+            <button id={"copy-mermaid-"+id} onClick={copyCode} title="Copy Mermaid code" style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:6,padding:"5px 10px",color:"#7ab2d4",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📋 Code</button>
+          </div>
+        )}
+      </div>
+      <div ref={ref} onClick={() => rendered && setExpanded(true)} style={{padding:"20px",minHeight:80,overflow:"auto",textAlign:"center",cursor:rendered?"zoom-in":"default"}}>
+        {!rendered ? (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"20px 0"}}><Dots/><span style={{fontSize:12,color:"#4a6a82"}}>Rendering diagram...</span></div>
+        ) : (
+          <div dangerouslySetInnerHTML={{__html: svgContent}}/>
+        )}
+      </div>
+      {rendered && (
+        <div style={{padding:"6px 14px",borderTop:"1px solid rgba(122,178,212,0.08)",fontSize:10,color:"#3a5a72",textAlign:"center",fontStyle:"italic"}}>💡 Click diagram or "Open Fullscreen" for zoom & pan</div>
+      )}
+
+      {expanded && rendered && (
+        <>
+          <div onClick={() => setExpanded(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.95)",zIndex:2000,backdropFilter:"blur(4px)"}}/>
+          <div style={{position:"fixed",top:10,left:10,right:10,bottom:10,zIndex:2010,background:"#0a1525",border:"2px solid rgba(122,178,212,0.35)",borderRadius:16,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {/* Fullscreen toolbar */}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 16px",borderBottom:"1px solid rgba(122,178,212,0.15)",background:"linear-gradient(180deg,#0f1e35,#0a1525)",flexWrap:"wrap",gap:8}}>
+              <span style={{fontSize:14,fontWeight:700,color:"#7ab2d4",fontFamily:"'Rajdhani',sans-serif",letterSpacing:"0.05em"}}>📊 ARCHITECTURE DIAGRAM — FULLSCREEN</span>
+              <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                <button onClick={() => setZoom(z => Math.max(0.3, z - 0.2))} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:8,padding:"6px 10px",color:"#7ab2d4",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minWidth:36}} title="Zoom out">−</button>
+                <span style={{fontSize:12,color:"#7ab2d4",fontWeight:700,minWidth:50,textAlign:"center"}}>{Math.round(zoom*100)}%</span>
+                <button onClick={() => setZoom(z => Math.min(5, z + 0.2))} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:8,padding:"6px 10px",color:"#7ab2d4",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",minWidth:36}} title="Zoom in">+</button>
+                <button onClick={() => { setZoom(1); setPan({x:0,y:0}); }} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:8,padding:"6px 12px",color:"#7ab2d4",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} title="Reset zoom">⟲ Reset</button>
+                <button onClick={() => setZoom(2)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:8,padding:"6px 12px",color:"#7ab2d4",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}} title="200% zoom">2x</button>
+                <div style={{width:1,height:24,background:"rgba(122,178,212,0.2)",margin:"0 4px"}}/>
+                <button onClick={downloadPNG} style={{background:"linear-gradient(135deg,#0078d4,#0ea5e9)",border:"none",borderRadius:8,padding:"6px 12px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖼️ Download PNG</button>
+                <button onClick={downloadSVG} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.25)",borderRadius:8,padding:"6px 12px",color:"#7ab2d4",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📥 SVG</button>
+                <button onClick={() => setExpanded(false)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:"50%",color:"#ef4444",cursor:"pointer",width:36,height:36,fontSize:18,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+              </div>
+            </div>
+            {/* Diagram viewport */}
+            <div
+              ref={fullscreenRef}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              style={{flex:1,overflow:"hidden",display:"flex",alignItems:"center",justifyContent:"center",background:"#162032",position:"relative",cursor:panState.current?.dragging?"grabbing":"grab"}}>
+              <div
+                style={{transform:`translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,transformOrigin:"center center",transition:panState.current?.dragging?"none":"transform 0.15s ease"}}
+                dangerouslySetInnerHTML={{__html: svgContent}}
+              />
+            </div>
+            <div style={{padding:"8px 16px",borderTop:"1px solid rgba(122,178,212,0.1)",fontSize:11,color:"#4a6a82",textAlign:"center",background:"#0a1525"}}>
+              💡 Scroll to zoom · Click + drag to pan · Use toolbar for precise control
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function Dots() {
@@ -779,6 +1005,65 @@ export default function App() {
       s.src = "/_vercel/insights/script.js";
       s.defer = true;
       document.head.appendChild(s);
+    }
+
+    /* Load FontAwesome for diagram icons */
+    if (!document.querySelector('link[href*="fontawesome"]')) {
+      const fa = document.createElement("link");
+      fa.rel = "stylesheet";
+      fa.href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css";
+      document.head.appendChild(fa);
+    }
+
+    /* Load Mermaid.js for architecture diagrams */
+    if (!window.mermaid && !document.querySelector('script[data-mermaid]')) {
+      const mm = document.createElement("script");
+      mm.src = "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js";
+      mm.setAttribute("data-mermaid", "true");
+      mm.onload = () => {
+        if (window.mermaid) {
+          window.mermaid.initialize({
+            startOnLoad: false,
+            theme: "base",
+            themeVariables: {
+              /* Dark Azure-style theme with LARGER fonts */
+              darkMode: true,
+              fontSize: "16px",
+              background: "#0a1525",
+              primaryColor: "#0078d4",
+              primaryTextColor: "#ffffff",
+              primaryBorderColor: "#005a9e",
+              secondaryColor: "#1e2e42",
+              tertiaryColor: "#0f1e35",
+              lineColor: "#7ab2d4",
+              textColor: "#e2e8f0",
+              mainBkg: "#1e2e42",
+              secondBkg: "#0f1e35",
+              tertiaryBkg: "#0a1525",
+              clusterBkg: "rgba(0,120,212,0.08)",
+              clusterBorder: "#0078d4",
+              edgeLabelBackground: "#0a1525",
+              nodeBkg: "#1e2e42",
+              nodeBorder: "#7ab2d4",
+              nodeTextColor: "#ffffff",
+              errorBkgColor: "#d13438",
+              errorTextColor: "#ffffff",
+            },
+            securityLevel: "loose",
+            flowchart: {
+              curve: "basis",
+              padding: 30,
+              nodeSpacing: 80,
+              rankSpacing: 100,
+              htmlLabels: true,
+              useMaxWidth: false,
+              diagramPadding: 20,
+            },
+            fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+          });
+        }
+      };
+      document.head.appendChild(mm);
     }
 
     /* PWA: Add manifest link */
@@ -1869,7 +2154,22 @@ export default function App() {
                     <div className="fin" style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:12}}>
                       <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0,marginTop:2}}/>
                       <div style={{maxWidth:"85%",background:"#1e2e42",border:"1px solid rgba(122,178,212,0.12)",borderRadius:"14px 14px 14px 4px",padding:"11px 14px",boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
-                        <Msg content={streamingText}/>
+                        <Msg content={(() => {
+                          /* Hide incomplete mermaid blocks during streaming */
+                          const parts = streamingText.split("```mermaid");
+                          if (parts.length === 1) return streamingText;
+                          let result = parts[0];
+                          for (let i = 1; i < parts.length; i++) {
+                            const closingIdx = parts[i].indexOf("```");
+                            if (closingIdx === -1) {
+                              result += "\n\n*📊 Generating architecture diagram...*";
+                              break;
+                            }
+                            result += "```mermaid" + parts[i].slice(0, closingIdx + 3);
+                            if (i < parts.length - 1) result += parts[i].slice(closingIdx + 3);
+                          }
+                          return result;
+                        })()}/>
                         <span style={{display:"inline-block",width:2,height:16,background:"#7ab2d4",animation:"bounce 1s infinite",verticalAlign:"text-bottom",marginLeft:2}}/>
                       </div>
                     </div>
