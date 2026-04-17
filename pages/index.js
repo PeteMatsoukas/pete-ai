@@ -640,6 +640,15 @@ function ClientPortal({ onClose, sessions, onLoadProject, mobile }) {
 }
 
 const STORAGE_KEY = "techbypete_sessions";
+const KNOWLEDGE_KEY = "techbypete_learned_knowledge";
+
+/* Load learned knowledge from localStorage */
+function loadLearnedKnowledge() {
+  try { return JSON.parse(localStorage.getItem(KNOWLEDGE_KEY) || "[]"); } catch { return []; }
+}
+function saveLearnedKnowledge(entries) {
+  try { localStorage.setItem(KNOWLEDGE_KEY, JSON.stringify(entries.slice(-50))); } catch {} /* max 50 entries */
+}
 const ACTIVE_KEY = "techbypete_active";
 
 function loadSessions() {
@@ -697,6 +706,12 @@ export default function App() {
     try { return !!localStorage.getItem("techbypete_lead_email"); } catch { return false; }
   });
   const FREE_MESSAGE_LIMIT = 5;
+  const [learnedKnowledge, setLearnedKnowledge] = useState(() => loadLearnedKnowledge());
+  const [showKnowledgeReview, setShowKnowledgeReview] = useState(false);
+  const [pendingKnowledge, setPendingKnowledge] = useState({ title: "", content: "", source: "" });
+  const [showVendorUpdate, setShowVendorUpdate] = useState(false);
+  const [vendorUpdateStatus, setVendorUpdateStatus] = useState(""); /* "" | "loading" | "ready" | "saved" */
+  const [vendorUpdateContent, setVendorUpdateContent] = useState("");
   const recognitionRef = useRef(null);
 
   const bottomRef = useRef(null);
@@ -936,6 +951,160 @@ export default function App() {
     cache: { cacheLocation: "sessionStorage" },
   };
 
+  /* Level 2: Save conversation insight to knowledge base */
+  const generateKnowledgeSummary = async (msgContent) => {
+    setShowKnowledgeReview(true);
+    setPendingKnowledge({ title: "Generating summary...", content: "Please wait...", source: "conversation" });
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: "Summarize the following AI response into a concise knowledge base entry. Format it as:\n\nTitle: [short descriptive title]\n\n[2-4 paragraphs covering: the problem/scenario, the solution approach, key technical details, and any gotchas or lessons learned. Include specific commands, pricing, or timelines if mentioned.]\n\nHere is the response to summarize:\n\n" + msgContent
+          }],
+          mode: "projects",
+          language: "en",
+        })
+      });
+      if (!response.ok) throw new Error("API error");
+      let accumulated = "";
+      if (response.body?.getReader) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === "[DONE]") continue;
+            try {
+              const evt = JSON.parse(jsonStr);
+              if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") accumulated += evt.delta.text;
+            } catch {}
+          }
+        }
+      }
+      const titleMatch = accumulated.match(/Title:\s*(.+)/i);
+      const title = titleMatch ? titleMatch[1].trim() : "Knowledge Entry";
+      const content = accumulated.replace(/Title:\s*.+\n*/i, "").trim();
+      setPendingKnowledge({ title, content, source: "conversation" });
+    } catch {
+      setPendingKnowledge({ title: "Error", content: "Failed to generate summary. You can write one manually.", source: "conversation" });
+    }
+  };
+
+  const approveKnowledge = () => {
+    if (!pendingKnowledge.content || pendingKnowledge.title === "Generating summary...") return;
+    const entry = {
+      id: Date.now(),
+      title: pendingKnowledge.title,
+      content: pendingKnowledge.content,
+      source: pendingKnowledge.source,
+      date: new Date().toISOString(),
+    };
+    const updated = [...learnedKnowledge, entry];
+    setLearnedKnowledge(updated);
+    saveLearnedKnowledge(updated);
+    setShowKnowledgeReview(false);
+    setPendingKnowledge({ title: "", content: "", source: "" });
+    trackEvent("knowledge_approved", { title: entry.title });
+  };
+
+  const deleteKnowledgeEntry = (id) => {
+    const updated = learnedKnowledge.filter(e => e.id !== id);
+    setLearnedKnowledge(updated);
+    saveLearnedKnowledge(updated);
+  };
+
+  const exportKnowledgeAsMD = (entry) => {
+    const md = "# " + entry.title + "\n\n" + entry.content + "\n\n---\n*Source: " + entry.source + " · " + new Date(entry.date).toLocaleDateString() + "*\n";
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = entry.title.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase() + ".md";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  /* Level 3: Auto-update from vendor sources */
+  const runVendorUpdate = async () => {
+    setShowVendorUpdate(true);
+    setVendorUpdateStatus("loading");
+    setVendorUpdateContent("");
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: "Search the web for the latest Microsoft Azure, Microsoft 365, Intune, Entra ID, and Windows Server updates, security advisories, and feature announcements from the past 7 days. Summarize the top 5-8 most important updates that IT admins and solutions architects need to know. Format each as:\n\n### [Update Title]\n[2-3 sentence summary of what changed and why it matters]\n\nFocus on: new features, security patches, deprecation notices, licensing changes, and best practice updates."
+          }],
+          mode: "projects",
+          language: "en",
+        })
+      });
+      if (!response.ok) throw new Error("API error");
+      let accumulated = "";
+      if (response.body?.getReader) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === "[DONE]") continue;
+            try {
+              const evt = JSON.parse(jsonStr);
+              if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+                accumulated += evt.delta.text;
+                setVendorUpdateContent(accumulated);
+              }
+            } catch {}
+          }
+        }
+      }
+      if (accumulated) {
+        setVendorUpdateContent(accumulated);
+        setVendorUpdateStatus("ready");
+      } else {
+        setVendorUpdateStatus("");
+        setVendorUpdateContent("Failed to fetch updates. Please try again.");
+      }
+    } catch {
+      setVendorUpdateStatus("");
+      setVendorUpdateContent("Error fetching vendor updates.");
+    }
+  };
+
+  const approveVendorUpdate = () => {
+    const entry = {
+      id: Date.now(),
+      title: "Vendor Updates — " + new Date().toLocaleDateString(),
+      content: vendorUpdateContent,
+      source: "vendor-auto-update",
+      date: new Date().toISOString(),
+    };
+    const updated = [...learnedKnowledge, entry];
+    setLearnedKnowledge(updated);
+    saveLearnedKnowledge(updated);
+    setVendorUpdateStatus("saved");
+    trackEvent("vendor_update_approved");
+  };
+
   const loadMSAL = () => new Promise((resolve, reject) => {
     if (window.msal) { resolve(); return; }
     const urls = [
@@ -1091,7 +1260,7 @@ export default function App() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, mode: activeTab, language }),
+        body: JSON.stringify({ messages: apiMessages, mode: activeTab, language, learnedKnowledge: learnedKnowledge.map(e => e.title + ": " + e.content).join("\n\n---\n\n") }),
         signal: controller.signal,
       });
 
@@ -1427,6 +1596,12 @@ export default function App() {
             <span>💼</span>{!mobile && " My Projects"}
           </button>
 
+          {/* Vendor Knowledge Update */}
+          <button onClick={() => { runVendorUpdate(); trackEvent("vendor_update_open"); }}
+            style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.2)",borderRadius:10,padding:mobile?"0 8px":"6px 14px",color:"#a855f7",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5,fontFamily:"inherit",flexShrink:0,minHeight:36,whiteSpace:"nowrap"}}>
+            <span>🔄</span>{!mobile && " Update KB"}
+          </button>
+
           <button onClick={() => setShowContact(v => !v)} style={{background:"linear-gradient(135deg,#1a5a9a,#0ea5e9)",border:"none",borderRadius:20,padding:mobile?"0 12px":"7px 16px",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontFamily:"inherit",flexShrink:0,minHeight:44,minWidth:mobile?44:undefined}}>
             <span>💬</span>{!mobile&&" Contact Pete"}
           </button>
@@ -1513,9 +1688,9 @@ export default function App() {
                           <div style={{background:isUser?"linear-gradient(135deg,#0d2d6e,#0a1e4a)":"#1e2e42",border:isUser?"1px solid rgba(122,178,212,0.25)":"1px solid rgba(122,178,212,0.12)",borderRadius:isUser?"14px 14px 4px 14px":"14px 14px 14px 4px",padding:"11px 14px",boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}>
                             {isUser ? <p style={{color:"#c8dff0",fontSize:15,lineHeight:1.6,margin:0,whiteSpace:"pre-wrap"}}>{displayContent}</p> : <Msg content={displayContent}/>}
                           </div>
-                          {/* Copy + Share + Listen buttons for assistant messages */}
+                          {/* Copy + Share + Listen + Save buttons for assistant messages */}
                           {!isUser && displayContent.length > 20 && (
-                            <div style={{display:"flex",gap:4,marginTop:4}}>
+                            <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
                               <button
                                 onClick={() => {
                                   navigator.clipboard.writeText(displayContent).then(() => {
@@ -1569,6 +1744,20 @@ export default function App() {
                                 }}>
                                 {speakingIdx === idx ? "⏹️ Stop" : "🔊 Listen"}
                               </button>
+                              {displayContent.length > 100 && (
+                                <button
+                                  onClick={() => generateKnowledgeSummary(displayContent)}
+                                  title="Save this response to Pete's knowledge base"
+                                  style={{
+                                    background:"none",border:"none",
+                                    cursor:"pointer",fontSize:15,padding:"4px 8px",
+                                    color:"#a855f7",
+                                    display:"flex",alignItems:"center",gap:5,
+                                    borderRadius:6,transition:"all .15s",
+                                  }}>
+                                  💡 Save to Knowledge
+                                </button>
+                              )}
                             </div>
                           )}
                           {hasDocument && (
@@ -1896,6 +2085,112 @@ export default function App() {
               trackEvent("portal_load");
             }}
           />
+        )}
+
+        {/* Level 2: Knowledge Review Modal */}
+        {showKnowledgeReview && (
+          <>
+            <div onClick={() => setShowKnowledgeReview(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)"}}/>
+            <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,width:mobile?"calc(100vw - 24px)":"min(600px, 90vw)",maxHeight:"85vh",overflowY:"auto",background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",border:"2px solid rgba(168,85,247,0.3)",borderRadius:20,boxShadow:"0 24px 80px rgba(0,0,0,0.8)",padding:"24px",animation:"fadeUp 0.25s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <span style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>💡 Review & Approve Knowledge</span>
+                <button onClick={() => setShowKnowledgeReview(false)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>×</button>
+              </div>
+              <p style={{color:"#64748b",fontSize:13,marginBottom:12,lineHeight:1.5}}>Review the AI-generated summary below. Edit if needed, then approve to add it to your agent's knowledge base.</p>
+
+              <div style={{marginBottom:12}}>
+                <label style={{fontSize:12,color:"#7ab2d4",fontWeight:600,marginBottom:4,display:"block"}}>Title</label>
+                <input value={pendingKnowledge.title} onChange={e => setPendingKnowledge(p => ({...p, title: e.target.value}))}
+                  style={{width:"100%",background:"#0a1525",border:"2px solid rgba(168,85,247,0.2)",borderRadius:10,padding:"10px 14px",color:"#e2e8f0",fontSize:14,fontFamily:"inherit",outline:"none"}}/>
+              </div>
+              <div style={{marginBottom:16}}>
+                <label style={{fontSize:12,color:"#7ab2d4",fontWeight:600,marginBottom:4,display:"block"}}>Content</label>
+                <textarea value={pendingKnowledge.content} onChange={e => setPendingKnowledge(p => ({...p, content: e.target.value}))} rows={10}
+                  style={{width:"100%",background:"#0a1525",border:"2px solid rgba(168,85,247,0.2)",borderRadius:10,padding:"12px 14px",color:"#e2e8f0",fontSize:13,fontFamily:"inherit",outline:"none",resize:"vertical",lineHeight:1.6}}/>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={approveKnowledge} disabled={pendingKnowledge.title === "Generating summary..."}
+                  style={{flex:1,background:pendingKnowledge.title === "Generating summary..."?"rgba(168,85,247,0.1)":"linear-gradient(135deg,#7c3aed,#a855f7)",border:"none",borderRadius:10,padding:"12px",color:pendingKnowledge.title === "Generating summary..."?"#4a6a82":"#fff",fontSize:14,fontWeight:700,cursor:pendingKnowledge.title === "Generating summary..."?"not-allowed":"pointer",fontFamily:"inherit"}}>
+                  ✅ Approve & Save to Knowledge Base
+                </button>
+                <button onClick={() => setShowKnowledgeReview(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px 20px",color:"#7ab2d4",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                  Cancel
+                </button>
+              </div>
+
+              {/* Existing knowledge entries */}
+              {learnedKnowledge.length > 0 && (
+                <div style={{marginTop:20,borderTop:"1px solid rgba(122,178,212,0.12)",paddingTop:16}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"#3a5a72",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}}>Saved Knowledge ({learnedKnowledge.length} entries)</div>
+                  {learnedKnowledge.map(e => (
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid rgba(122,178,212,0.06)"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,fontWeight:600,color:"#e2e8f0",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.title}</div>
+                        <div style={{fontSize:11,color:"#3a5a72"}}>{new Date(e.date).toLocaleDateString()} · {e.source}</div>
+                      </div>
+                      <button onClick={() => exportKnowledgeAsMD(e)} title="Download as .md file" style={{background:"none",border:"none",color:"#7ab2d4",cursor:"pointer",fontSize:14,padding:"4px"}}>📥</button>
+                      <button onClick={() => deleteKnowledgeEntry(e.id)} title="Delete" style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:14,padding:"4px"}}>🗑️</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Level 3: Vendor Knowledge Update Modal */}
+        {showVendorUpdate && (
+          <>
+            <div onClick={() => setShowVendorUpdate(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:900,backdropFilter:"blur(4px)"}}/>
+            <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,width:mobile?"calc(100vw - 24px)":"min(640px, 90vw)",maxHeight:"85vh",overflowY:"auto",background:"linear-gradient(180deg,#0f1e35 0%,#0a1525 100%)",border:"2px solid rgba(168,85,247,0.3)",borderRadius:20,boxShadow:"0 24px 80px rgba(0,0,0,0.8)",padding:"24px",animation:"fadeUp 0.25s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                <span style={{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Rajdhani',sans-serif"}}>🔄 Vendor Knowledge Update</span>
+                <button onClick={() => setShowVendorUpdate(false)} style={{background:"rgba(122,178,212,0.1)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:"50%",color:"#7ab2d4",cursor:"pointer",width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>×</button>
+              </div>
+
+              {vendorUpdateStatus === "loading" && (
+                <div style={{textAlign:"center",padding:"30px 0"}}>
+                  <Dots/>
+                  <p style={{color:"#a855f7",fontSize:14,marginTop:12}}>Searching for the latest Microsoft, Azure & M365 updates...</p>
+                  <p style={{color:"#4a6a82",fontSize:12,marginTop:4}}>This may take 15-30 seconds (web search in progress)</p>
+                </div>
+              )}
+
+              {vendorUpdateStatus === "loading" && vendorUpdateContent && (
+                <div style={{background:"#0a1525",border:"1px solid rgba(168,85,247,0.15)",borderRadius:12,padding:"16px",marginTop:12,maxHeight:300,overflowY:"auto"}}>
+                  <Msg content={vendorUpdateContent}/>
+                </div>
+              )}
+
+              {vendorUpdateStatus === "ready" && (
+                <>
+                  <p style={{color:"#64748b",fontSize:13,marginBottom:12}}>Review the latest vendor updates below. Approve to add them to your agent's knowledge base.</p>
+                  <div style={{background:"#0a1525",border:"1px solid rgba(168,85,247,0.15)",borderRadius:12,padding:"16px",marginBottom:16,maxHeight:400,overflowY:"auto"}}>
+                    <Msg content={vendorUpdateContent}/>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={approveVendorUpdate} style={{flex:1,background:"linear-gradient(135deg,#7c3aed,#a855f7)",border:"none",borderRadius:10,padding:"12px",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      ✅ Approve & Save to Knowledge Base
+                    </button>
+                    <button onClick={() => setShowVendorUpdate(false)} style={{background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"12px 20px",color:"#7ab2d4",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                      Discard
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {vendorUpdateStatus === "saved" && (
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <div style={{fontSize:40,marginBottom:12}}>✅</div>
+                  <p style={{color:"#34d399",fontSize:16,fontWeight:700}}>Vendor updates saved to knowledge base!</p>
+                  <p style={{color:"#64748b",fontSize:13,marginTop:6}}>Your agent will now reference these updates in conversations.</p>
+                  <button onClick={() => setShowVendorUpdate(false)} style={{marginTop:16,background:"rgba(122,178,212,0.08)",border:"1px solid rgba(122,178,212,0.2)",borderRadius:10,padding:"10px 24px",color:"#7ab2d4",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {/* PWA Install — floating card, bottom-right */}

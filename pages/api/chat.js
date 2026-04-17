@@ -16,7 +16,7 @@ function loadKnowledgeFiles() {
   } catch (e) { console.warn("RAG load error:", e.message); return []; }
 }
 
-function searchKnowledge(query, maxResults = 3) {
+function searchKnowledge(query, maxResults = 5) {
   const docs = loadKnowledgeFiles();
   if (docs.length === 0) return "";
 
@@ -134,6 +134,27 @@ You speak like a seasoned architect who has been in the trenches. Professional b
 - "You don't need Azure Firewall here. NSGs will do the job at a fraction of the cost. Save the budget for where it matters."
 - "Good news — this is a 4-week project, not a 4-month one."
 - "I wouldn't sleep well at night if I didn't flag this risk for you."
+
+## SPECIALIST ROLE SWITCHING
+You have access to deep specialist expertise across multiple domains. When your knowledge base injects a specialist document (files starting with "Specialist:"), activate that specialist persona alongside your core Pete identity:
+
+**How it works:**
+- You are ALWAYS Pete Matsoukas — the lead architect. The specialists are not separate people, they are Pete's deep expertise in specific domains.
+- When a specialist document is loaded, go deeper in that domain — use the specific architectures, sizing tables, pricing, and best practices from that specialist's knowledge.
+- For complex multi-domain questions, multiple specialist documents may be loaded. Combine their expertise naturally — just as Pete would in a real consultation.
+- Reference specific technical details (model numbers, PowerShell commands, exact configurations) from the specialist knowledge — this is what separates Pete from a generic consultant.
+
+**Your specialists:**
+- ☁️ Azure SA — Cloud architecture, migration, FinOps, DR
+- 🔒 M365 Security SA — Zero Trust, Conditional Access, Defender, Sentinel
+- 📧 M365 & Intune SA — Exchange, Teams, Intune, Entra ID, licensing
+- 🖥️ VMware SA — vSphere, vSAN, cluster design, hardware
+- 🛡️ FortiGate SA — SD-WAN, HA firewalls, VPN, ZTNA, security profiles
+- 💾 Veeam SA — Backup strategy, immutable repos, M365 backup, DR
+- 🔗 Network SA — Cisco, UniFi, wireless, VLANs, cabling
+- 🖥️ Windows Server SA — AD, clustering, SQL HA, Hyper-V, PKI, hardening
+
+**For multi-domain solutions:** When a client's problem spans multiple domains (e.g., "migrate to Azure with DR, secure M365, and replace VPN with SD-WAN"), address each domain with specialist-level depth and clearly show how the solutions interconnect. Present dependencies between domains (e.g., "the FortiGate S2S VPN must be configured before Azure VM migration begins").
 
 ## CASE STUDIES & KNOWLEDGE BASE
 Your detailed case studies, pricing data, technical playbooks, and project knowledge are stored in your knowledge base and automatically retrieved when relevant. You have extensive real-world experience including:
@@ -383,7 +404,7 @@ const LANGUAGES = {
   it: "Respond in Italian (Italiano). Use professional IT terminology in Italian where natural, but keep technical terms in English.",
 };
 
-function buildSystemPrompt(mode, userQuery = "", language = "en") {
+function buildSystemPrompt(mode, userQuery = "", language = "en", learnedKnowledge = "") {
   let prompt = SYSTEM;
   if (mode === "training") prompt += TRAINING_MODE;
   else prompt += PROJECTS_MODE;
@@ -397,6 +418,11 @@ function buildSystemPrompt(mode, userQuery = "", language = "en") {
   if (userQuery) {
     const knowledgeContext = searchKnowledge(userQuery);
     if (knowledgeContext) prompt += knowledgeContext;
+  }
+
+  /* Learned knowledge from approved conversation insights */
+  if (learnedKnowledge && learnedKnowledge.trim().length > 0) {
+    prompt += "\n\n## LEARNED KNOWLEDGE (Pete-approved insights from previous conversations)\nThe following knowledge entries have been reviewed and approved by Pete. Use them naturally when relevant.\n\n" + learnedKnowledge.trim();
   }
 
   return prompt;
@@ -455,7 +481,7 @@ async function callAzurePricing(input) {
   }
 }
 
-async function callAnthropic(messages, stream = false, mode = "projects", userQuery = "", language = "en") {
+async function callAnthropic(messages, stream = false, mode = "projects", userQuery = "", language = "en", learnedKnowledge = "") {
   return fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -467,7 +493,7 @@ async function callAnthropic(messages, stream = false, mode = "projects", userQu
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
       stream,
-      system: buildSystemPrompt(mode, userQuery, language),
+      system: buildSystemPrompt(mode, userQuery, language, learnedKnowledge),
       messages: messages,
       tools: TOOLS
     })
@@ -654,7 +680,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { messages, mode, language } = req.body;
+  const { messages, mode, language, learnedKnowledge } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: "Missing messages" });
@@ -715,7 +741,7 @@ export default async function handler(req, res) {
     const MAX_TOOL_ROUNDS = 5;
 
     while (attempts < MAX_TOOL_ROUNDS) {
-      const response = await callAnthropic(currentMessages, true, activeMode, userQuery, activeLang);
+      const response = await callAnthropic(currentMessages, true, activeMode, userQuery, activeLang, learnedKnowledge || "");
 
       if (!response.ok) {
         const errText = await response.text();
