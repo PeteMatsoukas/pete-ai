@@ -82,7 +82,7 @@ function detectSpecialists(query) {
   const isComplex = complexityMarkers.some(m => lower.includes(m));
 
   /* Return top specialists — if only 1 matched, still use multi-agent if complex */
-  if (scored.length >= 2) return scored.slice(0, 5); /* max 5 specialists */
+  if (scored.length >= 2) return scored.slice(0, 3); /* max 3 specialists to fit 60s Vercel timeout */
   if (scored.length === 1 && isComplex) return scored;
   return [];
 }
@@ -137,7 +137,7 @@ Be focused. 400-600 words max. Do NOT try to cover domains outside your expertis
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2048,
+      max_tokens: 1500,
       system: systemPrompt,
       messages: [{ role: "user", content: userQuery }]
     })
@@ -220,7 +220,7 @@ function isBot(req) {
 
 export const config = {
   api: { responseLimit: false },
-  maxDuration: 300, /* Longer timeout — multi-agent takes 30-90 seconds */
+  maxDuration: 60, /* Vercel Hobby plan max */
 };
 
 /* ============================================
@@ -258,19 +258,29 @@ export default async function handler(req, res) {
     return res.status(200).json({ error: "no_specialists", message: "This question doesn't require multi-specialist analysis. Try the regular chat." });
   }
 
-  /* Set up SSE */
+  /* Set up SSE — Vercel requires these headers and immediate flush */
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
     "Connection": "keep-alive",
     "X-Accel-Buffering": "no",
+    "Content-Encoding": "none",
   });
   res.flushHeaders();
+
+  /* Send immediate keepalive so Vercel opens the stream */
+  res.write(": connected\n\n");
+  if (typeof res.flush === "function") res.flush();
 
   const send = (type, data) => {
     res.write("data: " + JSON.stringify({ type, ...data }) + "\n\n");
     if (typeof res.flush === "function") res.flush();
   };
+
+  /* Keepalive ping every 15s to prevent Vercel from closing the connection */
+  const keepaliveInterval = setInterval(() => {
+    try { res.write(": ping\n\n"); if (typeof res.flush === "function") res.flush(); } catch {}
+  }, 15000);
 
   try {
     /* Step 1: Announce specialists */
@@ -322,11 +332,13 @@ export default async function handler(req, res) {
     }
 
     send("complete", {});
+    clearInterval(keepaliveInterval);
     res.end();
 
   } catch (err) {
     console.error("Orchestrator error:", err);
     send("error", { message: err.message });
+    clearInterval(keepaliveInterval);
     res.end();
   }
 }
