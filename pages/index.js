@@ -712,7 +712,34 @@ export default function App() {
   const [showVendorUpdate, setShowVendorUpdate] = useState(false);
   const [vendorUpdateStatus, setVendorUpdateStatus] = useState(""); /* "" | "loading" | "ready" | "saved" */
   const [vendorUpdateContent, setVendorUpdateContent] = useState("");
+  const [orchestratorActive, setOrchestratorActive] = useState(false);
+  const [specialistsWorking, setSpecialistsWorking] = useState([]); /* [{key, name, icon, status}] */
   const recognitionRef = useRef(null);
+
+  /* Detect if query is complex enough to trigger multi-agent */
+  const detectComplexQuery = (query) => {
+    const lower = query.toLowerCase();
+    /* Multi-domain keywords — if 2+ of these appear, it's complex */
+    const domains = [
+      { name: "azure", terms: ["azure","avd","vnet","expressroute","hub-spoke","landing zone"] },
+      { name: "security", terms: ["zero trust","conditional access","defender","sentinel","cis","mfa","phishing"] },
+      { name: "m365", terms: ["m365","office 365","exchange","teams","sharepoint","intune","entra","autopilot"] },
+      { name: "vmware", terms: ["vmware","vsphere","esxi","vsan","vcenter","vmotion"] },
+      { name: "fortigate", terms: ["fortigate","sd-wan","ztna","vpn","forticlient","fortinet"] },
+      { name: "veeam", terms: ["veeam","backup","immutable","ransomware","rpo","rto"] },
+      { name: "network", terms: ["cisco","unifi","vlan","wifi","wireless","radius","802.1x"] },
+      { name: "server", terms: ["active directory","ad ds","hyper-v","wsfc","sql always on","gpo"] },
+    ];
+    let hits = 0;
+    for (const d of domains) if (d.terms.some(t => lower.includes(t))) hits++;
+
+    /* Complexity markers that justify multi-agent even on single-domain */
+    const complexMarkers = ["migrate","deploy","design","architect","plan","sow","statement of work","solution","project","end-to-end","full stack","complete"];
+    const hasComplexity = complexMarkers.some(m => lower.includes(m));
+
+    /* Trigger multi-agent when: 2+ domains OR 1 domain + complexity marker */
+    return (hits >= 2) || (hits === 1 && hasComplexity && query.length > 40);
+  };
 
   const bottomRef = useRef(null);
   const taRef = useRef(null);
@@ -1257,7 +1284,16 @@ export default function App() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const response = await fetch("/api/chat", {
+      /* Route to orchestrator for complex multi-domain queries */
+      const useOrchestrator = detectComplexQuery(t) && !currentFile;
+      const endpoint = useOrchestrator ? "/api/orchestrate" : "/api/chat";
+
+      if (useOrchestrator) {
+        setOrchestratorActive(true);
+        setSpecialistsWorking([]);
+      }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: apiMessages, mode: activeTab, language, learnedKnowledge: learnedKnowledge.map(e => e.title + ": " + e.content).join("\n\n---\n\n") }),
@@ -1300,6 +1336,19 @@ export default function App() {
               if (!jsonStr || jsonStr === "[DONE]") continue;
               try {
                 const evt = JSON.parse(jsonStr);
+                /* Orchestrator-specific events */
+                if (evt.type === "orchestrator_start") {
+                  setSpecialistsWorking(evt.specialists.map(s => ({ ...s, status: "pending" })));
+                } else if (evt.type === "specialist_start") {
+                  setSpecialistsWorking(prev => prev.map(s => s.key === evt.key ? { ...s, status: "working" } : s));
+                } else if (evt.type === "specialist_complete") {
+                  setSpecialistsWorking(prev => prev.map(s => s.key === evt.key ? { ...s, status: "complete" } : s));
+                } else if (evt.type === "specialist_error") {
+                  setSpecialistsWorking(prev => prev.map(s => s.key === evt.key ? { ...s, status: "error" } : s));
+                } else if (evt.type === "assembly_start") {
+                  setSpecialistsWorking(prev => [...prev, { key: "_pete", name: "Pete Matsoukas (Lead Architect)", icon: "🎯", status: "working" }]);
+                }
+                /* Regular content streaming */
                 if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
                   accumulated += evt.delta.text;
                   setStreamingText(accumulated);
@@ -1341,6 +1390,8 @@ export default function App() {
     } finally {
       setLoading(false);
       setStreamingText("");
+      setOrchestratorActive(false);
+      setSpecialistsWorking([]);
       abortRef.current = null;
     }
   };
@@ -1824,12 +1875,36 @@ export default function App() {
                     </div>
                   )}
                   {/* Loading — before stream starts */}
-                  {loading && !streamingText && (
+                  {loading && !streamingText && !specialistsWorking.length && (
                     <div className="fin" style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:12}}>
                       <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0}}/>
                       <div style={{background:"#1e2e42",border:"1px solid rgba(122,178,212,0.12)",borderRadius:"14px 14px 14px 4px",padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
                         <Dots/>
                         <span style={{fontSize:13,color:"#4a6a82",fontWeight:500,whiteSpace:"nowrap"}}>Pete's AI Agent is thinking…</span>
+                      </div>
+                    </div>
+                  )}
+                  {/* Multi-Agent Orchestrator — specialists working */}
+                  {loading && specialistsWorking.length > 0 && !streamingText && (
+                    <div className="fin" style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:12}}>
+                      <img src="/pete.jpg" alt="Pete" style={{width:28,height:28,borderRadius:"50%",border:"2px solid #7ab2d4",objectFit:"cover",objectPosition:"center top",flexShrink:0,marginTop:2}}/>
+                      <div style={{background:"#1e2e42",border:"1px solid rgba(168,85,247,0.25)",borderRadius:"14px 14px 14px 4px",padding:"14px 16px",minWidth:280}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                          <span style={{fontSize:16}}>🧠</span>
+                          <span style={{fontSize:13,fontWeight:700,color:"#a855f7",letterSpacing:"0.04em",textTransform:"uppercase"}}>Multi-Specialist Analysis</span>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {specialistsWorking.map(s => (
+                            <div key={s.key} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 10px",background:s.status==="working"?"rgba(168,85,247,0.1)":s.status==="complete"?"rgba(52,211,153,0.08)":s.status==="error"?"rgba(239,68,68,0.08)":"rgba(122,178,212,0.04)",border:"1px solid "+(s.status==="working"?"rgba(168,85,247,0.3)":s.status==="complete"?"rgba(52,211,153,0.25)":s.status==="error"?"rgba(239,68,68,0.25)":"rgba(122,178,212,0.12)"),borderRadius:8,transition:"all .3s"}}>
+                              <span style={{fontSize:16}}>{s.icon}</span>
+                              <span style={{flex:1,fontSize:13,fontWeight:500,color:s.status==="complete"?"#34d399":s.status==="error"?"#ef4444":"#e2e8f0"}}>{s.name}</span>
+                              {s.status === "pending" && <span style={{fontSize:11,color:"#4a6a82"}}>waiting...</span>}
+                              {s.status === "working" && <Dots/>}
+                              {s.status === "complete" && <span style={{fontSize:14,color:"#34d399"}}>✓</span>}
+                              {s.status === "error" && <span style={{fontSize:14,color:"#ef4444"}}>✗</span>}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
