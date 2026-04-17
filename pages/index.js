@@ -489,9 +489,34 @@ function isDocumentResponse(text) {
     || /^#\s+.*(Learning Path|Training Plan|Certification|Roadmap)/m.test(text);
 }
 
-function openDocumentPrint(markdownText) {
+async function openDocumentPrint(markdownText) {
+  /* Extract Mermaid diagrams and pre-render them to SVG for embedding */
+  const mermaidBlocks = [];
+  let processedMarkdown = markdownText;
+
+  if (window.mermaid) {
+    const regex = /```mermaid\s*([\s\S]*?)```/g;
+    let match;
+    const matches = [];
+    while ((match = regex.exec(markdownText)) !== null) {
+      matches.push({ full: match[0], code: match[1].trim() });
+    }
+
+    for (let i = 0; i < matches.length; i++) {
+      try {
+        const id = "pdfmermaid-" + i + "-" + Math.random().toString(36).slice(2, 9);
+        const { svg } = await window.mermaid.render(id, matches[i].code);
+        mermaidBlocks.push(svg);
+        processedMarkdown = processedMarkdown.replace(matches[i].full, `\n\n<!--MERMAID_${i}-->\n\n`);
+      } catch (e) {
+        console.warn("Mermaid render for PDF failed:", e);
+        processedMarkdown = processedMarkdown.replace(matches[i].full, "");
+      }
+    }
+  }
+
   /* Convert markdown to simple HTML */
-  let html = markdownText
+  let html = processedMarkdown
     .replace(/^### (.*$)/gm, '<h3>$1</h3>')
     .replace(/^## (.*$)/gm, '<h2>$1</h2>')
     .replace(/^# (.*$)/gm, '<h1>$1</h1>')
@@ -518,8 +543,16 @@ function openDocumentPrint(markdownText) {
     const trimmed = line.trim();
     if (!trimmed) return '';
     if (/^<[hH\d|ul|ol|li|table|thead|tbody|tr|td|th|hr]/.test(trimmed)) return trimmed;
+    if (trimmed.startsWith('<!--MERMAID_')) return trimmed;
     return `<p>${trimmed}</p>`;
   }).join('\n');
+
+  /* Substitute diagram placeholders with rendered SVGs */
+  mermaidBlocks.forEach((svg, i) => {
+    const placeholder = `<!--MERMAID_${i}-->`;
+    const diagramHtml = `<div class="diagram-container"><div class="diagram-label">Architecture Diagram</div><div class="diagram-svg">${svg}</div></div>`;
+    html = html.replace(placeholder, diagramHtml);
+  });
 
   const fullHtml = `<!DOCTYPE html>
 <html>
@@ -558,6 +591,22 @@ function openDocumentPrint(markdownText) {
   ul, ol { margin: 8px 0 8px 20px; }
   li { margin: 4px 0; color: #334155; }
   table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12.5px; }
+  .diagram-container {
+    margin: 24px 0; padding: 20px; background: #f8fafc;
+    border: 2px solid #0078d4; border-radius: 8px;
+    page-break-inside: avoid;
+  }
+  .diagram-label {
+    font-size: 10px; font-weight: 700; color: #0078d4;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 12px; text-align: center;
+  }
+  .diagram-svg {
+    text-align: center;
+  }
+  .diagram-svg svg {
+    max-width: 100%; height: auto;
+  }
   th { background: #f1f5f9; color: #0078d4; font-weight: 600; text-align: left;
        padding: 8px 12px; border: 1px solid #e2e8f0; font-size: 11px;
        text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1220,7 +1269,10 @@ export default function App() {
 
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
+    const isCompetitorMode = fileRef.current?.getAttribute("data-mode") === "competitor";
+    if (fileRef.current) fileRef.current.removeAttribute("data-mode");
     if (!file) return;
+
     const isCSV = file.type === "text/csv" || file.type === "application/vnd.ms-excel" || file.name.endsWith(".csv");
     if (!isCSV && !ALLOWED_TYPES.includes(file.type)) {
       alert("Supported formats: PDF, PNG, JPEG, GIF, WebP, CSV");
@@ -1230,9 +1282,15 @@ export default function App() {
       alert(`File must be under ${MAX_FILE_MB} MB`);
       return;
     }
+
+    /* Competitor mode only accepts PDF */
+    if (isCompetitorMode && file.type !== "application/pdf") {
+      alert("For proposal analysis, please upload a PDF file.");
+      return;
+    }
+
     try {
       if (isCSV) {
-        /* Parse CSV and create analysis summary */
         const text = await new Promise((res, rej) => {
           const r = new FileReader();
           r.onload = () => res(r.result);
@@ -1246,6 +1304,14 @@ export default function App() {
         const base64 = await fileToBase64(file);
         const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
         setAttachedFile({ name: file.name, type: file.type, size: file.size, data: base64, preview });
+
+        /* If competitor analysis mode, auto-send the analysis prompt */
+        if (isCompetitorMode) {
+          trackEvent("competitor_analysis_submit");
+          setTimeout(() => {
+            send("Please analyze this competitor's proposal/SOW using the Proposal Comparison Engine framework. Identify gaps, risks, and what Pete's approach would add. Be honest and respectful of the competitor — the goal is to help me make an informed decision.");
+          }, 200);
+        }
       }
     } catch {
       alert("Failed to read file. Please try again.");
@@ -2285,6 +2351,20 @@ export default function App() {
                     style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:10,padding:"10px 12px",color:"#a855f7",fontSize:12,fontWeight:600,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,whiteSpace:"nowrap",flexShrink:0,opacity:loading?0.5:1}}>
                     ✍️ Weekly Take
                   </button>
+                  {activeTab === "projects" && (
+                    <button
+                      onClick={() => {
+                        trackEvent("competitor_analysis_open");
+                        if (fileRef.current) {
+                          fileRef.current.setAttribute("data-mode", "competitor");
+                          fileRef.current.click();
+                        }
+                      }}
+                      disabled={loading}
+                      style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"10px 12px",color:"#ef4444",fontSize:12,fontWeight:600,cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",minHeight:40,whiteSpace:"nowrap",flexShrink:0,opacity:loading?0.5:1}}>
+                      🔍 Analyze Proposal
+                    </button>
+                  )}
                   <a
                     href={CALENDLY_URL} target="_blank" rel="noopener noreferrer"
                     onClick={() => trackEvent("calendly_click", { source: "input_bar" })}
