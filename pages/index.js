@@ -617,6 +617,306 @@ function ROICalculator({ onClose, onAskPete, mobile }) {
 }
 
 /* ============================================================
+   MSAL SINGLETON — Microsoft's required pattern for popup flow.
+   Creating a fresh PublicClientApplication per click causes
+   "timed_out" errors because the popup's postMessage callback
+   races with the new instance's listener registration. One
+   initialized instance, reused across scans, fixes this.
+   ============================================================ */
+let _msalInstancePromise = null;
+function getMsalInstance() {
+  if (_msalInstancePromise) return _msalInstancePromise;
+  _msalInstancePromise = (async () => {
+    const msal = await import("@azure/msal-browser");
+    const instance = new msal.PublicClientApplication({
+      auth: {
+        clientId: MSAL_CLIENT_ID,
+        authority: "https://login.microsoftonline.com/common",
+        redirectUri: typeof window !== "undefined" ? window.location.origin : "",
+      },
+      cache: {
+        cacheLocation: "sessionStorage",
+        storeAuthStateInCookie: false,
+      },
+    });
+    await instance.initialize();
+    /* Consume any lingering redirect response from a prior session so
+       a fresh loginPopup doesn't race with stale state. */
+    try { await instance.handleRedirectPromise(); } catch (_) {}
+    return instance;
+  })();
+  return _msalInstancePromise;
+}
+
+/* ============================================================
+   SECURE SCORE SCANNER — M365 lead magnet, live Graph API scan
+   ============================================================ */
+function SecureScoreScanner({ onClose, onAskPete, mobile }) {
+  const [state, setState] = useState("ready"); /* ready | authenticating | scanning | success | error */
+  const [error, setError] = useState("");
+  const [scoreData, setScoreData] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+
+  async function runScan() {
+    setState("authenticating");
+    setError("");
+    /* Declared at function scope so catch block can inspect HTTP status */
+    let scoreResponse = null;
+
+    try {
+      /* Use singleton — initialized once, reused across all scans */
+      const msalInstance = await getMsalInstance();
+
+      const loginResponse = await msalInstance.loginPopup({
+        scopes: ["User.Read", "SecurityEvents.Read.All"],
+        prompt: "select_account",
+      });
+
+      const account = loginResponse.account;
+      setUserInfo({
+        name: account.name,
+        username: account.username,
+        tenantId: account.tenantId,
+      });
+
+      setState("scanning");
+
+      const tokenRequest = {
+        scopes: ["SecurityEvents.Read.All"],
+        account,
+      };
+
+      let tokenResponse;
+      try {
+        tokenResponse = await msalInstance.acquireTokenSilent(tokenRequest);
+      } catch (e) {
+        tokenResponse = await msalInstance.acquireTokenPopup(tokenRequest);
+      }
+
+      scoreResponse = await fetch(
+        "https://graph.microsoft.com/v1.0/security/secureScores?$top=1",
+        { headers: { Authorization: `Bearer ${tokenResponse.accessToken}` } }
+      );
+
+      if (!scoreResponse.ok) {
+        const errData = await scoreResponse.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `Graph API returned ${scoreResponse.status}`);
+      }
+
+      const scoreJson = await scoreResponse.json();
+
+      if (!scoreJson.value || scoreJson.value.length === 0) {
+        throw new Error("No Secure Score data available for this tenant. New tenants need ~24h to generate an initial score.");
+      }
+
+      setScoreData(scoreJson.value[0]);
+      setState("success");
+      trackEvent("securescore_scan_success");
+    } catch (err) {
+      console.error("Secure Score scan error:", err);
+      setState("error");
+      trackEvent("securescore_scan_error", { code: err.errorCode || "unknown" });
+
+      const code = err.errorCode || "";
+      const msg = err.message || "";
+
+      if (code === "user_cancelled") {
+        setError("Sign-in was cancelled. Click below to try again.");
+      } else if (code === "popup_window_error" || code === "empty_window_error") {
+        setError("The sign-in popup was blocked by your browser. Please allow popups for ask.techbypete.com and try again.");
+      } else if (code === "timed_out" || msg.includes("timed_out")) {
+        setError("The sign-in popup timed out. Most common causes: (1) your tenant admin has not granted consent for SecurityEvents.Read.All — check API permissions in Entra, (2) the Entra app's Supported account types is set to Single tenant instead of Multitenant, or (3) a browser extension is blocking cross-window communication. Try in an incognito window to rule out extensions.");
+      } else if (code === "consent_required" || msg.includes("consent")) {
+        setError("Your tenant admin must consent to the SecurityEvents.Read.All permission. Please have a Global Administrator run this scan, or contact Pete to arrange admin consent separately.");
+      } else if (msg.includes("Insufficient privileges") || msg.includes("Authorization_RequestDenied") || msg.includes("Forbidden") || (scoreResponse && scoreResponse.status === 403)) {
+        setError("This account doesn't have permission to read Secure Score. Please sign in with a Global Administrator, Security Administrator, or Security Reader account.");
+      } else {
+        setError(msg || "An unexpected error occurred. Please try again, or contact Pete if this persists.");
+      }
+    }
+  }
+
+  const percent = scoreData ? Math.round((scoreData.currentScore / scoreData.maxScore) * 100) : 0;
+  const rating = percent >= 80 ? "Excellent" : percent >= 60 ? "Good" : percent >= 40 ? "Fair" : percent >= 20 ? "Needs Work" : "Critical";
+  const ratingColor = percent >= 80 ? "#26d07c" : percent >= 60 ? "#a5b4fc" : percent >= 40 ? "#f59e0b" : "#ef4444";
+
+  const byCategory = scoreData?.controlScores?.reduce((acc, c) => {
+    const cat = c.controlCategory || "Other";
+    if (!acc[cat]) acc[cat] = { score: 0, max: 0, count: 0 };
+    acc[cat].score += c.score || 0;
+    acc[cat].max += c.maxScore || 0;
+    acc[cat].count += 1;
+    return acc;
+  }, {}) || {};
+
+  const topGaps = scoreData?.controlScores
+    ?.filter(c => c.maxScore > 0 && (c.maxScore - (c.score || 0)) > 0)
+    ?.sort((a, b) => ((b.maxScore || 0) - (b.score || 0)) - ((a.maxScore || 0) - (a.score || 0)))
+    ?.slice(0, 5) || [];
+
+  function askPete() {
+    const summary = `Analyze my Microsoft Secure Score and design a remediation roadmap:
+
+**Current score:** ${scoreData.currentScore}/${scoreData.maxScore} (${percent}%) — ${rating}
+**Licensed users:** ${scoreData.licensedUserCount ?? "N/A"}
+**Active users:** ${scoreData.activeUserCount ?? "N/A"}
+**Scan date:** ${new Date(scoreData.createdDateTime).toLocaleDateString()}
+
+**Category breakdown:**
+${Object.entries(byCategory).map(([cat, v]) => `- ${cat}: ${Math.round(v.score)}/${Math.round(v.max)} (${Math.round((v.score / v.max) * 100)}%)`).join("\n")}
+
+**Top 5 highest-impact gaps (by point value):**
+${topGaps.map((c, i) => `${i + 1}. ${c.controlName} — +${Math.round((c.maxScore || 0) - (c.score || 0))} pts possible`).join("\n")}
+
+Design a prioritized remediation roadmap with three tiers:
+1. **Quick wins** (this week, no license upgrades needed)
+2. **30-day improvements** (medium effort, config changes)
+3. **90-day strategic** (may require E5/Defender/Sentinel licensing)
+
+For each item: estimated time to implement, expected score delta, and whether it requires a license upgrade. End with Essential / Recommended / Premium pricing tiers for my engagement.`;
+
+    onAskPete(summary);
+    trackEvent("securescore_ask_pete");
+    onClose();
+  }
+
+  return (
+    <>
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:900,backdropFilter:"blur(6px)"}}/>
+      <div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:910,width:mobile?"calc(100vw - 24px)":"min(620px, 90vw)",maxHeight:"90vh",overflowY:"auto",background:"#12161d",border:"1px solid rgba(255,255,255,0.1)",borderRadius:14,padding:24}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,gap:12}}>
+          <div style={{minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <span style={{fontSize:18}}>🛡️</span>
+              <div style={{fontSize:17,fontWeight:600,color:"#ffffff",letterSpacing:"-0.01em"}}>Secure Score Scanner</div>
+            </div>
+            <div style={{fontSize:12.5,color:"#9ca3af"}}>Read-only scan of your M365 tenant — nothing is stored</div>
+          </div>
+          <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,color:"#9ca3af",cursor:"pointer",width:32,height:32,fontSize:14,flexShrink:0}}>×</button>
+        </div>
+
+        {state === "ready" && (
+          <div>
+            <div style={{background:"rgba(94,106,210,0.06)",border:"1px solid rgba(94,106,210,0.18)",borderRadius:10,padding:16,marginBottom:14}}>
+              <div style={{fontSize:13,color:"#e8eaed",fontWeight:600,marginBottom:8}}>What this does</div>
+              <ul style={{margin:0,paddingLeft:18,fontSize:12.5,color:"#9ca3af",lineHeight:1.7}}>
+                <li>Signs you in with your Microsoft 365 admin account</li>
+                <li>Reads your tenant's current Secure Score from Microsoft Graph</li>
+                <li>Shows the top gaps and generates a remediation plan</li>
+                <li>Everything runs in your browser — Pete never sees your credentials</li>
+              </ul>
+            </div>
+
+            <div style={{background:"rgba(245,158,11,0.06)",border:"1px solid rgba(245,158,11,0.2)",borderRadius:10,padding:12,marginBottom:16}}>
+              <div style={{fontSize:12,color:"#f59e0b",fontWeight:600,marginBottom:4}}>⚠️ Required access</div>
+              <div style={{fontSize:12,color:"#d1d5db",lineHeight:1.55}}>
+                Sign in with a <strong style={{color:"#fbbf24"}}>Global Administrator</strong>, <strong style={{color:"#fbbf24"}}>Security Administrator</strong>, or <strong style={{color:"#fbbf24"}}>Security Reader</strong> account. You will be asked to consent to read-only <code style={{background:"#0a0d12",padding:"1px 5px",borderRadius:3,fontSize:11}}>SecurityEvents.Read.All</code> permission.
+              </div>
+            </div>
+
+            <button onClick={runScan} style={{width:"100%",background:"#5e6ad2",border:"none",borderRadius:10,padding:"13px",color:"#fff",fontSize:14,fontWeight:500,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+              <span>🔐</span> Sign in & scan my tenant
+            </button>
+          </div>
+        )}
+
+        {(state === "authenticating" || state === "scanning") && (
+          <div style={{padding:"40px 20px",textAlign:"center"}}>
+            <div style={{width:40,height:40,border:"3px solid rgba(94,106,210,0.2)",borderTopColor:"#5e6ad2",borderRadius:"50%",margin:"0 auto 16px",animation:"msalspin 0.8s linear infinite"}}/>
+            <div style={{fontSize:14,color:"#e8eaed",fontWeight:500,marginBottom:4}}>
+              {state === "authenticating" ? "Waiting for sign-in..." : "Fetching Secure Score..."}
+            </div>
+            <div style={{fontSize:12,color:"#9ca3af"}}>
+              {state === "authenticating" ? "Complete the login in the popup window" : "Calling Microsoft Graph API"}
+            </div>
+            <style>{`@keyframes msalspin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        )}
+
+        {state === "success" && scoreData && (
+          <div>
+            {userInfo && (
+              <div style={{fontSize:11,color:"#6b7280",marginBottom:14,textAlign:"center"}}>
+                Signed in as <span style={{color:"#a5b4fc"}}>{userInfo.username}</span>
+              </div>
+            )}
+
+            <div style={{textAlign:"center",padding:"12px 0 20px",borderBottom:"1px solid rgba(255,255,255,0.06)",marginBottom:20}}>
+              <div style={{fontSize:48,fontWeight:700,color:ratingColor,letterSpacing:"-0.03em",lineHeight:1}}>{percent}%</div>
+              <div style={{fontSize:14,color:ratingColor,fontWeight:600,marginTop:4,letterSpacing:"0.02em"}}>{rating}</div>
+              <div style={{fontSize:12,color:"#9ca3af",marginTop:6}}>
+                {Math.round(scoreData.currentScore)} of {Math.round(scoreData.maxScore)} points
+              </div>
+            </div>
+
+            {Object.keys(byCategory).length > 0 && (
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,color:"#6b7280",letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,marginBottom:10}}>By Category</div>
+                {Object.entries(byCategory).map(([cat, v]) => {
+                  const pct = v.max > 0 ? Math.round((v.score / v.max) * 100) : 0;
+                  const barColor = pct >= 80 ? "#26d07c" : pct >= 50 ? "#5e6ad2" : pct >= 25 ? "#f59e0b" : "#ef4444";
+                  return (
+                    <div key={cat} style={{marginBottom:8}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12.5,color:"#d1d5db",marginBottom:4}}>
+                        <span style={{fontWeight:500}}>{cat}</span>
+                        <span style={{color:"#9ca3af"}}>{Math.round(v.score)}/{Math.round(v.max)} · {pct}%</span>
+                      </div>
+                      <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
+                        <div style={{width:`${pct}%`,height:"100%",background:barColor,transition:"width 0.5s ease"}}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {topGaps.length > 0 && (
+              <div style={{marginBottom:20}}>
+                <div style={{fontSize:11,color:"#6b7280",letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Top 5 Opportunities</div>
+                {topGaps.map((c, i) => (
+                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"8px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,marginBottom:5}}>
+                    <div style={{fontSize:11,color:"#6b7280",fontWeight:700,minWidth:18}}>{i + 1}.</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12.5,color:"#e8eaed",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.controlName}</div>
+                      <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>
+                        +{Math.round((c.maxScore || 0) - (c.score || 0))} pts possible · {c.controlCategory || "Other"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={askPete} style={{width:"100%",background:"#5e6ad2",border:"none",borderRadius:10,padding:"13px",color:"#fff",fontSize:14,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}>
+              Get Pete's remediation roadmap →
+            </button>
+          </div>
+        )}
+
+        {state === "error" && (
+          <div>
+            <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:16,marginBottom:16}}>
+              <div style={{fontSize:13,color:"#fca5a5",fontWeight:600,marginBottom:6,display:"flex",alignItems:"center",gap:6}}>
+                <span>⚠️</span> Scan failed
+              </div>
+              <div style={{fontSize:12.5,color:"#d1d5db",lineHeight:1.55}}>{error}</div>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={() => { setState("ready"); setError(""); }} style={{flex:1,background:"#5e6ad2",border:"none",borderRadius:10,padding:"12px",color:"#fff",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}>
+                Try again
+              </button>
+              <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"12px 20px",color:"#9ca3af",fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit"}}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ============================================================
    LEAD CAPTURE MODAL — Email gate after 5 free messages
    ============================================================ */
 function LeadCaptureModal({ onClose, onSubmit }) {
@@ -690,6 +990,7 @@ export default function App() {
   const [showContact, setShowContact] = useState(false);
   const [showMeetPete, setShowMeetPete] = useState(false);
   const [showROI, setShowROI] = useState(false);
+  const [showSecureScoreScan, setShowSecureScoreScan] = useState(false);
   const [showPortal, setShowPortal] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
   const [showKnowledgeReview, setShowKnowledgeReview] = useState(false);
@@ -1341,6 +1642,11 @@ export default function App() {
             {/* Tools */}
             <div style={{marginBottom:6}}>
               <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px"}}>TOOLS</div>
+              <button onClick={() => { setShowSecureScoreScan(true); trackEvent("tool_securescore_open"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                <span style={{fontSize:14,width:18,textAlign:"center"}}>🛡️</span>
+                <span style={{flex:1}}>Scan Secure Score</span>
+                <span style={{fontSize:9,background:"rgba(38,208,124,0.15)",color:"#26d07c",padding:"1px 6px",borderRadius:10,border:"1px solid rgba(38,208,124,0.25)",letterSpacing:"0.04em",fontWeight:600,textTransform:"uppercase"}}>New</span>
+              </button>
               <button onClick={() => { setShowROI(true); trackEvent("tool_roi_open"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
                 <span style={{fontSize:14,width:18,textAlign:"center"}}>📊</span>
                 <span style={{flex:1}}>ROI Calculator</span>
@@ -1687,6 +1993,8 @@ export default function App() {
         )}
 
         {showROI && <ROICalculator onClose={() => setShowROI(false)} onAskPete={(u,s,a,sv) => send(`Based on my environment: ${u} users, $${s}/month Azure spend, ${a}-year old infrastructure. Your calculator estimates ~$${sv.toLocaleString()} annual savings. Design me a specific optimization plan.`)} mobile={mobile}/>}
+
+        {showSecureScoreScan && <SecureScoreScanner onClose={() => setShowSecureScoreScan(false)} onAskPete={(prompt) => send(prompt)} mobile={mobile}/>}
 
         {showLeadCapture && <LeadCaptureModal onClose={() => setShowLeadCapture(false)} onSubmit={(email) => { setCapturedEmail(email); setShowLeadCapture(false); }}/>}
 
