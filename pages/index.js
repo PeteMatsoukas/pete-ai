@@ -787,28 +787,78 @@ function SecureScoreScanner({ onClose, onAskPete, mobile, autoResume }) {
     ?.slice(0, 5) || [];
 
   function askPete() {
-    const summary = `Analyze my Microsoft Secure Score and design a remediation roadmap:
+    /* Compute derived business intelligence to give Pete rich context.
+       Filter out categories where maxScore is 0 (controls not applicable to this tenant)
+       to avoid NaN/Infinity percentages that confuse the model. */
+    const validCategories = Object.entries(byCategory).filter(([, v]) => v.max > 0);
+    const lowestCategory = validCategories.sort((a, b) => (a[1].score / a[1].max) - (b[1].score / b[1].max))[0];
+    const totalPointsAvailable = scoreData.controlScores
+      ?.filter(c => c.maxScore > 0 && (c.maxScore - (c.score || 0)) > 0)
+      ?.reduce((sum, c) => sum + ((c.maxScore || 0) - (c.score || 0)), 0) || 0;
+    const scanDate = new Date(scoreData.createdDateTime).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-**Current score:** ${scoreData.currentScore}/${scoreData.maxScore} (${percent}%) — ${rating}
+    const summary = `I just ran the Secure Score Scanner on my Microsoft 365 tenant. Here are the live results from Microsoft Graph API:
+
+## 📊 Tenant Scan Results
+
+**Overall Posture:** ${scoreData.currentScore}/${scoreData.maxScore} points (${percent}%) — **${rating}**
 **Licensed users:** ${scoreData.licensedUserCount ?? "N/A"}
 **Active users:** ${scoreData.activeUserCount ?? "N/A"}
-**Scan date:** ${new Date(scoreData.createdDateTime).toLocaleDateString()}
+**Scan date:** ${scanDate}
+**Total points still available:** ${Math.round(totalPointsAvailable)}${lowestCategory ? `
+**Weakest category:** ${lowestCategory[0]} (${Math.round((lowestCategory[1].score / lowestCategory[1].max) * 100)}%)` : ""}
 
-**Category breakdown:**
-${Object.entries(byCategory).map(([cat, v]) => `- ${cat}: ${Math.round(v.score)}/${Math.round(v.max)} (${Math.round((v.score / v.max) * 100)}%)`).join("\n")}
+### Score by Category
+${validCategories.map(([cat, v]) => `- **${cat}:** ${Math.round(v.score)}/${Math.round(v.max)} pts (${Math.round((v.score / v.max) * 100)}%) — ${v.count} controls`).join("\n")}
 
-**Top 5 highest-impact gaps (by point value):**
-${topGaps.map((c, i) => `${i + 1}. ${c.controlName} — +${Math.round((c.maxScore || 0) - (c.score || 0))} pts possible`).join("\n")}
+### Top 5 highest-impact gaps (ranked by point value)
+${topGaps.map((c, i) => `${i + 1}. **${c.controlName}** — +${Math.round((c.maxScore || 0) - (c.score || 0))} pts possible · Category: ${c.controlCategory || "Other"}`).join("\n")}
 
-Design a prioritized remediation roadmap with three tiers:
-1. **Quick wins** (this week, no license upgrades needed)
-2. **30-day improvements** (medium effort, config changes)
-3. **90-day strategic** (may require E5/Defender/Sentinel licensing)
+---
 
-For each item: estimated time to implement, expected score delta, and whether it requires a license upgrade. End with Essential / Recommended / Premium pricing tiers for my engagement.`;
+This data is live from Microsoft Graph and is complete and accurate for this tenant. Treat the numbers above as authoritative ground truth — do not caveat the data quality, do not second-guess the scanner, and do not insert hypothetical "typical scoring patterns" or averages. Work with these exact numbers. If a category has fewer points than expected, that simply means fewer controls apply to this licensing tier — this is normal Microsoft Graph behavior, not a tool error.
+
+Now put on your **M365 Security SA** hat and give me the analysis I actually need. Structure your response in this exact order:
+
+**1. What this score means in plain business terms** (3-4 sentences)
+What's the real-world risk exposure? What kinds of attacks is this tenant vulnerable to right now? Frame it in language a non-technical stakeholder (CFO, business owner, insurance broker) would understand. Mention cyber insurance implications if the score is under 70% — most carriers now require MFA + Conditional Access, and a weak Secure Score can affect premiums or renewal eligibility.
+
+**2. One immediate Quick Win I can do today — for free** (a gift of value)
+Pick the #1 highest-impact control from the top 5 that requires zero licensing upgrade and can be fixed in under 30 minutes. Give me the specific steps — PowerShell command, admin center path, or Conditional Access policy JSON. This is your consultative gift: prove value before any sales pitch.
+
+**3. The remediation roadmap — three tiers**
+
+Structure as a concise table (Markdown):
+
+| Tier | Timeframe | Effort | Score Delta | License Required | Focus Areas |
+
+- **Tier 1 — Quick Wins** (this week, no licensing changes): what controls, estimated combined score lift
+- **Tier 2 — 30-day improvements** (config + policy work, may need Entra ID P1): what controls, estimated lift
+- **Tier 3 — 90-day strategic** (E5 / Defender / Sentinel territory): what controls, estimated lift
+
+For each tier, list the 2-3 specific controls from my top 5 gaps that fit, and be honest about which ones will require license upgrades vs which are pure config.
+
+**4. Engagement options from TechByPete**
+
+Structure as three tiers with approximate pricing and deliverables:
+
+- **Essential** — Audit + documented remediation plan (you execute in-house)
+- **⭐ Recommended** — Hands-on remediation of Tier 1 + Tier 2 (we do it for you)
+- **Premium** — Full Zero Trust program including Tier 3 + 6-month managed security posture review
+
+**5. Next step**
+End with: "Want me to draft a Statement of Work based on these findings? I can have it ready in seconds as a downloadable PDF."
+
+---
+
+**Formatting rules — important:**
+- Keep the tone consultative, not salesy. Lead with the genuine free quick-win in section 2 — that's what earns trust.
+- Do NOT generate a Mermaid diagram, flowchart, or architecture diagram in this response. The scan results and remediation roadmap should be plain text + one Markdown table only. Save diagrams for the SOW if requested.
+- Do NOT narrate meta-commentary about the data ("these numbers look unusual", "assuming typical patterns", "the scanner may have…"). The data is what it is. Analyze it.
+- Every paragraph should be worth reading. No padding.`;
 
     onAskPete(summary);
-    trackEvent("securescore_ask_pete");
+    trackEvent("securescore_ask_pete", { score: percent, rating });
     onClose();
   }
 
