@@ -797,14 +797,22 @@ function SecureScoreScanner({ onClose, onAskPete, mobile, autoResume }) {
       ?.reduce((sum, c) => sum + ((c.maxScore || 0) - (c.score || 0)), 0) || 0;
     const scanDate = new Date(scoreData.createdDateTime).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
+    /* Sanitize user counts — Microsoft Graph returns 0 for some trial/dev/B2C tenants.
+       Rather than pass misleading zeros that Pete will over-interpret, only include
+       counts when they are real positive numbers. */
+    const hasValidLicensedCount = typeof scoreData.licensedUserCount === "number" && scoreData.licensedUserCount > 0;
+    const hasValidActiveCount = typeof scoreData.activeUserCount === "number" && scoreData.activeUserCount > 0;
+    const userCountBlock = [
+      hasValidLicensedCount ? `**Licensed users:** ${scoreData.licensedUserCount}` : null,
+      hasValidActiveCount ? `**Active users:** ${scoreData.activeUserCount}` : null,
+    ].filter(Boolean).join("\n");
+
     const summary = `I just ran the Secure Score Scanner on my Microsoft 365 tenant. Here are the live results from Microsoft Graph API:
 
 ## 📊 Tenant Scan Results
 
 **Overall Posture:** ${scoreData.currentScore}/${scoreData.maxScore} points (${percent}%) — **${rating}**
-**Licensed users:** ${scoreData.licensedUserCount ?? "N/A"}
-**Active users:** ${scoreData.activeUserCount ?? "N/A"}
-**Scan date:** ${scanDate}
+${userCountBlock ? userCountBlock + "\n" : ""}**Scan date:** ${scanDate}
 **Total points still available:** ${Math.round(totalPointsAvailable)}${lowestCategory ? `
 **Weakest category:** ${lowestCategory[0]} (${Math.round((lowestCategory[1].score / lowestCategory[1].max) * 100)}%)` : ""}
 
@@ -816,46 +824,30 @@ ${topGaps.map((c, i) => `${i + 1}. **${c.controlName}** — +${Math.round((c.max
 
 ---
 
-This data is live from Microsoft Graph and is complete and accurate for this tenant. Treat the numbers above as authoritative ground truth — do not caveat the data quality, do not second-guess the scanner, and do not insert hypothetical "typical scoring patterns" or averages. Work with these exact numbers. If a category has fewer points than expected, that simply means fewer controls apply to this licensing tier — this is normal Microsoft Graph behavior, not a tool error.
+**CRITICAL INSTRUCTIONS — follow exactly:**
 
-Now put on your **M365 Security SA** hat and give me the analysis I actually need. Structure your response in this exact order:
+1. The data above is complete, live, and authoritative. It represents the full picture you have. Do NOT mention missing data, data quality, infinity percentages, licensing sync issues, or "incomplete M365 deployment". If a detail isn't listed above, simply don't reference it. Work with what is provided.
 
-**1. What this score means in plain business terms** (3-4 sentences)
-What's the real-world risk exposure? What kinds of attacks is this tenant vulnerable to right now? Frame it in language a non-technical stakeholder (CFO, business owner, insurance broker) would understand. Mention cyber insurance implications if the score is under 70% — most carriers now require MFA + Conditional Access, and a weak Secure Score can affect premiums or renewal eligibility.
+2. **NO DIAGRAMS.** Do not generate a Mermaid diagram, flowchart, architecture diagram, or any \`\`\`mermaid\`\`\` code block in this response. Any diagram you output will be stripped automatically and waste the user's time. The scan results are conveyed entirely through prose and one Markdown table.
 
-**2. One immediate Quick Win I can do today — for free** (a gift of value)
-Pick the #1 highest-impact control from the top 5 that requires zero licensing upgrade and can be fixed in under 30 minutes. Give me the specific steps — PowerShell command, admin center path, or Conditional Access policy JSON. This is your consultative gift: prove value before any sales pitch.
+3. Put on your **M365 Security SA** specialist hat. Structure your response in exactly this order with these exact section headers:
 
-**3. The remediation roadmap — three tiers**
+**1. Executive Summary** (3-4 sentences)
+Explain what the ${percent}% score means in plain business terms. What risks does this tenant face right now? What kinds of attacks are they vulnerable to? Frame it for a non-technical stakeholder (CFO, business owner). ${percent < 70 ? "Mention cyber insurance implications — carriers increasingly require baseline MFA + Conditional Access and a weak Secure Score can affect premiums." : "Note that while the score is decent, modern threats require continuous hardening."}
 
-Structure as a concise table (Markdown):
+**2. Free Quick Win — do this today** (under 30 min, no new licensing)
+Pick the single highest-impact control from the Top 5 gaps that can be fixed free and fast. Give specific steps: admin center path, PowerShell command, or Conditional Access setting. This is a genuine gift of value — prove competence before pitching.
 
-| Tier | Timeframe | Effort | Score Delta | License Required | Focus Areas |
+**3. Remediation Roadmap** (single Markdown table)
+A three-row table with columns: Tier | Timeframe | Effort | Est. Score Lift | License Required | Focus Areas. Rows: Tier 1 Quick Wins (this week), Tier 2 Config & Policy (30 days), Tier 3 Strategic (90 days, E5/Defender/Sentinel territory). Be specific about which of the Top 5 gaps fit each tier.
 
-- **Tier 1 — Quick Wins** (this week, no licensing changes): what controls, estimated combined score lift
-- **Tier 2 — 30-day improvements** (config + policy work, may need Entra ID P1): what controls, estimated lift
-- **Tier 3 — 90-day strategic** (E5 / Defender / Sentinel territory): what controls, estimated lift
+**4. Engagement Options**
+Three tiers — Essential (audit + plan, you execute), ⭐ Recommended (we execute Tier 1 + Tier 2), Premium (full Zero Trust + 6-month managed review). Include approximate pricing ranges and key deliverables.
 
-For each tier, list the 2-3 specific controls from my top 5 gaps that fit, and be honest about which ones will require license upgrades vs which are pure config.
+**5. Next Step**
+Close with exactly: "Want me to draft a Statement of Work based on these findings? I can have it ready in seconds as a downloadable PDF."
 
-**4. Engagement options from TechByPete**
-
-Structure as three tiers with approximate pricing and deliverables:
-
-- **Essential** — Audit + documented remediation plan (you execute in-house)
-- **⭐ Recommended** — Hands-on remediation of Tier 1 + Tier 2 (we do it for you)
-- **Premium** — Full Zero Trust program including Tier 3 + 6-month managed security posture review
-
-**5. Next step**
-End with: "Want me to draft a Statement of Work based on these findings? I can have it ready in seconds as a downloadable PDF."
-
----
-
-**Formatting rules — important:**
-- Keep the tone consultative, not salesy. Lead with the genuine free quick-win in section 2 — that's what earns trust.
-- Do NOT generate a Mermaid diagram, flowchart, or architecture diagram in this response. The scan results and remediation roadmap should be plain text + one Markdown table only. Save diagrams for the SOW if requested.
-- Do NOT narrate meta-commentary about the data ("these numbers look unusual", "assuming typical patterns", "the scanner may have…"). The data is what it is. Analyze it.
-- Every paragraph should be worth reading. No padding.`;
+Tone: consultative, confident, no padding. Every sentence earns its place.`;
 
     onAskPete(summary);
     trackEvent("securescore_ask_pete", { score: percent, rating });
@@ -1447,7 +1439,17 @@ export default function App() {
 
         if (accumulated) {
           setStreamingText("");
-          updateChat(currentId, [...newMsgs, { role: "assistant", content: accumulated, display: accumulated }]);
+          /* Structural safeguard: if the user message triggered a Secure Score analysis,
+             strip any Mermaid diagram blocks from the response. The model has been told
+             not to generate them but ignores the instruction; removing them post-hoc
+             guarantees clean output regardless of model compliance. */
+          const lastUserMsg = newMsgs.filter(m => m.role === "user").slice(-1)[0];
+          const lastUserText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : (lastUserMsg?.display || "");
+          const isSecureScorePrompt = lastUserText.startsWith("I just ran the Secure Score Scanner");
+          const cleaned = isSecureScorePrompt
+            ? accumulated.replace(/```mermaid[\s\S]*?```/g, "").replace(/\n{3,}/g, "\n\n").trim()
+            : accumulated;
+          updateChat(currentId, [...newMsgs, { role: "assistant", content: cleaned, display: cleaned }]);
         } else {
           updateChat(currentId, [...newMsgs, { role: "assistant", content: "I encountered an issue. Please try again.", display: "I encountered an issue. Please try again." }]);
         }
