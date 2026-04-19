@@ -631,8 +631,8 @@ function getMsalInstance() {
     const instance = new msal.PublicClientApplication({
       auth: {
         clientId: MSAL_CLIENT_ID,
-        authority: "https://login.microsoftonline.com/common",
-        redirectUri: typeof window !== "undefined" ? window.location.origin : "",
+        authority: "https://login.microsoftonline.com/organizations",
+        redirectUri: typeof window !== "undefined" ? window.location.origin + "/blank.html" : "",
       },
       cache: {
         cacheLocation: "sessionStorage",
