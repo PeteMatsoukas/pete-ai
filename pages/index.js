@@ -1419,7 +1419,11 @@ export default function App() {
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const useOrchestrator = detectComplexQuery(t) && !currentFile;
+      /* Secure Score scans only need the M365 Security SA — full 8-specialist
+         orchestration adds 15-30s of overhead that frequently pushes the response
+         past the 60s Vercel Hobby timeout. Bypass the orchestrator for these. */
+      const isSecureScoreRequest = typeof t === "string" && t.startsWith("I just ran the Secure Score Scanner");
+      const useOrchestrator = !isSecureScoreRequest && detectComplexQuery(t) && !currentFile;
       const endpoint = useOrchestrator ? "/api/orchestrate" : "/api/chat";
 
       if (useOrchestrator) {
