@@ -705,22 +705,65 @@ function SecureScoreScanner({ onClose, onAskPete, mobile, autoResume }) {
         return; /* page is redirecting; no further execution */
       }
 
-      scoreResponse = await fetch(
-        "https://graph.microsoft.com/v1.0/security/secureScores?$top=1",
-        { headers: { Authorization: `Bearer ${tokenResponse.accessToken}` } }
-      );
+      /* Fetch two Graph endpoints in parallel:
+         1. secureScores — tenant's current scores (sometimes missing maxScore per control)
+         2. secureScoreControlProfiles — master list of all controls with full metadata
+         We merge them because Microsoft frequently returns controls without maxScore
+         in the secureScores response, which breaks all gap calculations. */
+      const [scoreRes, profilesRes] = await Promise.all([
+        fetch("https://graph.microsoft.com/v1.0/security/secureScores?$top=1",
+          { headers: { Authorization: `Bearer ${tokenResponse.accessToken}` } }),
+        fetch("https://graph.microsoft.com/v1.0/security/secureScoreControlProfiles?$top=200",
+          { headers: { Authorization: `Bearer ${tokenResponse.accessToken}` } })
+      ]);
 
-      if (!scoreResponse.ok) {
-        const errData = await scoreResponse.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `Graph API returned ${scoreResponse.status}`);
+      scoreResponse = scoreRes; /* expose to catch handler */
+
+      if (!scoreRes.ok) {
+        const errData = await scoreRes.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `Graph API returned ${scoreRes.status}`);
       }
 
-      const scoreJson = await scoreResponse.json();
+      const scoreJson = await scoreRes.json();
       if (!scoreJson.value || scoreJson.value.length === 0) {
         throw new Error("No Secure Score data available for this tenant. New tenants need ~24h to generate an initial score.");
       }
 
-      setScoreData(scoreJson.value[0]);
+      /* Build profile lookup for merging. Profiles may not be available — that's OK. */
+      const profilesByName = {};
+      if (profilesRes.ok) {
+        try {
+          const profilesJson = await profilesRes.json();
+          (profilesJson.value || []).forEach(p => {
+            if (p.id) profilesByName[p.id] = p;
+          });
+        } catch (_) { /* ignore — we'll work without profile enrichment */ }
+      }
+
+      /* Merge: fill in missing maxScore, controlCategory, etc from the profiles endpoint */
+      const rawData = scoreJson.value[0];
+      const enrichedControls = (rawData.controlScores || []).map(c => {
+        const profile = profilesByName[c.controlName];
+        let maxScore = c.maxScore;
+        /* If maxScore is missing, try: profile.maxScore, or reverse-engineer from scoreInPercentage */
+        if (maxScore == null || maxScore === 0) {
+          if (profile && typeof profile.maxScore === "number" && profile.maxScore > 0) {
+            maxScore = profile.maxScore;
+          } else if (typeof c.scoreInPercentage === "number" && c.scoreInPercentage > 0 && c.score > 0) {
+            maxScore = c.score / (c.scoreInPercentage / 100);
+          }
+        }
+        return {
+          ...c,
+          maxScore: maxScore || 0,
+          controlCategory: c.controlCategory || profile?.controlCategory || "Other",
+          controlName: c.controlName || profile?.title || "Unknown control",
+          description: c.description || profile?.description || "",
+          title: profile?.title || c.controlName,
+        };
+      });
+
+      setScoreData({ ...rawData, controlScores: enrichedControls });
       setState("success");
       trackEvent("securescore_scan_success");
     } catch (err) {
@@ -807,6 +850,8 @@ function SecureScoreScanner({ onClose, onAskPete, mobile, autoResume }) {
       hasValidActiveCount ? `**Active users:** ${scoreData.activeUserCount}` : null,
     ].filter(Boolean).join("\n");
 
+    const hasDetailedControls = validCategories.length > 0 || topGaps.length > 0;
+
     const summary = `I just ran the Secure Score Scanner on my Microsoft 365 tenant. Here are the live results from Microsoft Graph API:
 
 ## 📊 Tenant Scan Results
@@ -815,41 +860,53 @@ function SecureScoreScanner({ onClose, onAskPete, mobile, autoResume }) {
 ${userCountBlock ? userCountBlock + "\n" : ""}**Scan date:** ${scanDate}
 **Total points still available:** ${Math.round(totalPointsAvailable)}${lowestCategory ? `
 **Weakest category:** ${lowestCategory[0]} (${Math.round((lowestCategory[1].score / lowestCategory[1].max) * 100)}%)` : ""}
-
+${hasDetailedControls ? `
 ### Score by Category
 ${validCategories.map(([cat, v]) => `- **${cat}:** ${Math.round(v.score)}/${Math.round(v.max)} pts (${Math.round((v.score / v.max) * 100)}%) — ${v.count} controls`).join("\n")}
 
 ### Top 5 highest-impact gaps (ranked by point value)
-${topGaps.map((c, i) => `${i + 1}. **${c.controlName}** — +${Math.round((c.maxScore || 0) - (c.score || 0))} pts possible · Category: ${c.controlCategory || "Other"}`).join("\n")}
+${topGaps.map((c, i) => {
+  const name = c.title || c.controlName || "Unknown";
+  const desc = c.description ? ` — ${c.description.replace(/\s+/g, " ").trim().slice(0, 200)}` : "";
+  return `${i + 1}. **${name}** (+${Math.round((c.maxScore || 0) - (c.score || 0))} pts · ${c.controlCategory || "Other"})${desc}`;
+}).join("\n")}` : `
+_Per-control breakdown was not returned by Microsoft Graph for this tenant. Work from the overall score only._`}
 
 ---
 
 **CRITICAL INSTRUCTIONS — follow exactly:**
 
-1. The data above is complete, live, and authoritative. It represents the full picture you have. Do NOT mention missing data, data quality, infinity percentages, licensing sync issues, or "incomplete M365 deployment". If a detail isn't listed above, simply don't reference it. Work with what is provided.
+1. Data above is authoritative. Work with these numbers. Do NOT caveat data quality or mention missing fields.
 
-2. **NO DIAGRAMS.** Do not generate a Mermaid diagram, flowchart, architecture diagram, or any \`\`\`mermaid\`\`\` code block in this response. Any diagram you output will be stripped automatically and waste the user's time. The scan results are conveyed entirely through prose and one Markdown table.
+2. NO DIAGRAMS. No Mermaid blocks — any diagram will be stripped automatically.
 
-3. Put on your **M365 Security SA** specialist hat. Structure your response in exactly this order with these exact section headers:
+3. Put on your **M365 Security SA** hat. Produce these 5 sections in order:
 
 **1. Executive Summary** (3-4 sentences)
-Explain what the ${percent}% score means in plain business terms. What risks does this tenant face right now? What kinds of attacks are they vulnerable to? Frame it for a non-technical stakeholder (CFO, business owner). ${percent < 70 ? "Mention cyber insurance implications — carriers increasingly require baseline MFA + Conditional Access and a weak Secure Score can affect premiums." : "Note that while the score is decent, modern threats require continuous hardening."}
+What does ${percent}% mean in plain business terms? What attacks is this tenant vulnerable to? Frame for CFO / business owner. ${percent < 70 ? "Mention cyber insurance impact — carriers require baseline MFA + CA." : "Note that modern threats require continuous hardening."}
 
 **2. Free Quick Win — do this today** (under 30 min, no new licensing)
-Pick the single highest-impact control from the Top 5 gaps that can be fixed free and fast. Give specific steps: admin center path, PowerShell command, or Conditional Access setting. This is a genuine gift of value — prove competence before pitching.
+${hasDetailedControls
+  ? "Pick the #1 highest-impact control from Top 5 that is free and fast. Specific steps: admin center path or PowerShell."
+  : "Recommend the top foundational control (Security Defaults / baseline MFA / block legacy auth). Specific steps."}
+This is a gift of value — prove competence.
 
-**3. Remediation Roadmap** (single Markdown table)
-A three-row table with columns: Tier | Timeframe | Effort | Est. Score Lift | License Required | Focus Areas. Rows: Tier 1 Quick Wins (this week), Tier 2 Config & Policy (30 days), Tier 3 Strategic (90 days, E5/Defender/Sentinel territory). Be specific about which of the Top 5 gaps fit each tier.
+**3. Remediation Roadmap** (one Markdown table)
+Columns: Tier | Timeframe | Effort | Est. Score Lift | License | Focus Areas. Rows: Tier 1 (this week), Tier 2 (30d, P1/E3 territory), Tier 3 (90d, E5/Defender/Sentinel). ${hasDetailedControls ? "Map specific Top 5 controls to each tier." : "Use standard Secure Score improvement patterns."}
 
 **4. Engagement Options**
-Three tiers — Essential (audit + plan, you execute), ⭐ Recommended (we execute Tier 1 + Tier 2), Premium (full Zero Trust + 6-month managed review). Include approximate pricing ranges and key deliverables.
+Essential / ⭐ Recommended / Premium — with approximate pricing and key deliverables.
 
 **5. Next Step**
-Close with exactly: "Want me to draft a Statement of Work based on these findings? I can have it ready in seconds as a downloadable PDF."
+End with exactly: "Want me to draft a Statement of Work based on these findings? I can have it ready in seconds as a downloadable PDF."
 
-Tone: consultative, confident, no padding. Every sentence earns its place.`;
+Consultative tone. No padding.`;
 
-    onAskPete(summary);
+    /* Short summary shown in the chat UI — keeps the conversation clean.
+       Pete still receives the full instructed prompt via onAskPete's first arg. */
+    const userDisplay = `🛡️ I ran the Secure Score Scanner — scored **${scoreData.currentScore}/${scoreData.maxScore} (${percent}% · ${rating})**${lowestCategory ? ` with **${lowestCategory[0]}** as the weakest category` : ""}. Please analyze the results and give me a remediation roadmap.`;
+
+    onAskPete(summary, userDisplay);
     trackEvent("securescore_ask_pete", { score: percent, rating });
     onClose();
   }
@@ -947,17 +1004,20 @@ Tone: consultative, confident, no padding. Every sentence earns its place.`;
             {topGaps.length > 0 && (
               <div style={{marginBottom:20}}>
                 <div style={{fontSize:11,color:"#6b7280",letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,marginBottom:10}}>Top 5 Opportunities</div>
-                {topGaps.map((c, i) => (
-                  <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"8px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,marginBottom:5}}>
-                    <div style={{fontSize:11,color:"#6b7280",fontWeight:700,minWidth:18}}>{i + 1}.</div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:12.5,color:"#e8eaed",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.controlName}</div>
-                      <div style={{fontSize:11,color:"#9ca3af",marginTop:2}}>
-                        +{Math.round((c.maxScore || 0) - (c.score || 0))} pts possible · {c.controlCategory || "Other"}
+                {topGaps.map((c, i) => {
+                  const displayName = c.title || c.controlName || "Unknown control";
+                  return (
+                    <div key={i} title={c.description || ""} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:8,marginBottom:5}}>
+                      <div style={{fontSize:11,color:"#6b7280",fontWeight:700,minWidth:18,marginTop:1}}>{i + 1}.</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:13,color:"#e8eaed",fontWeight:500,lineHeight:1.35}}>{displayName}</div>
+                        <div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>
+                          +{Math.round((c.maxScore || 0) - (c.score || 0))} pts possible · {c.controlCategory || "Other"}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -1297,7 +1357,7 @@ export default function App() {
   };
 
   /* ========== SEND MESSAGE ========== */
-  const send = async (text) => {
+  const send = async (text, displayOverride) => {
     const t = (text || input).trim();
     if ((!t && !attachedFile) || loading) return;
 
@@ -1322,7 +1382,7 @@ export default function App() {
     const currentFile = attachedFile;
     setAttachedFile(null);
 
-    let userDisplay = t || "(see attached file)";
+    let userDisplay = displayOverride || t || "(see attached file)";
     let userApiContent;
     if (currentFile) {
       if (currentFile.type === "text/csv") {
@@ -1451,7 +1511,15 @@ export default function App() {
             : accumulated;
           updateChat(currentId, [...newMsgs, { role: "assistant", content: cleaned, display: cleaned }]);
         } else {
-          updateChat(currentId, [...newMsgs, { role: "assistant", content: "I encountered an issue. Please try again.", display: "I encountered an issue. Please try again." }]);
+          /* Empty stream usually means Vercel function timeout (60s on Hobby plan)
+             or a cold-start stall. Give the user actionable guidance. */
+          const lastUserMsg = newMsgs.filter(m => m.role === "user").slice(-1)[0];
+          const lastUserText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+          const wasSecureScore = lastUserText.startsWith("I just ran the Secure Score Scanner");
+          const emptyMsg = wasSecureScore
+            ? "The response timed out mid-way. This happens when Pete's analysis takes longer than 60 seconds to generate. Please rerun the scan and click **Get Pete's remediation roadmap** again — a second attempt usually completes faster with warmer caches. If it keeps timing out, book a call with Pete directly: " + CALENDLY_URL
+            : "The response came back empty. Please try sending your message again.";
+          updateChat(currentId, [...newMsgs, { role: "assistant", content: emptyMsg, display: emptyMsg }]);
         }
       }
     } catch (e) {
@@ -2182,7 +2250,7 @@ export default function App() {
 
         {showROI && <ROICalculator onClose={() => setShowROI(false)} onAskPete={(u,s,a,sv) => send(`Based on my environment: ${u} users, $${s}/month Azure spend, ${a}-year old infrastructure. Your calculator estimates ~$${sv.toLocaleString()} annual savings. Design me a specific optimization plan.`)} mobile={mobile}/>}
 
-        {showSecureScoreScan && <SecureScoreScanner onClose={() => { setShowSecureScoreScan(false); setSecureScoreAutoResume(false); }} onAskPete={(prompt) => send(prompt)} mobile={mobile} autoResume={secureScoreAutoResume}/>}
+        {showSecureScoreScan && <SecureScoreScanner onClose={() => { setShowSecureScoreScan(false); setSecureScoreAutoResume(false); }} onAskPete={(prompt, display) => send(prompt, display)} mobile={mobile} autoResume={secureScoreAutoResume}/>}
 
         {showLeadCapture && <LeadCaptureModal onClose={() => setShowLeadCapture(false)} onSubmit={(email) => { setCapturedEmail(email); setShowLeadCapture(false); }}/>}
 
