@@ -617,12 +617,21 @@ function ROICalculator({ onClose, onAskPete, mobile }) {
 }
 
 /* ============================================================
-   MSAL SINGLETON — Microsoft's required pattern for popup flow.
-   Creating a fresh PublicClientApplication per click causes
-   "timed_out" errors because the popup's postMessage callback
-   races with the new instance's listener registration. One
-   initialized instance, reused across scans, fixes this.
+   MSAL SINGLETON — Redirect flow (bulletproof across browsers).
+   We use loginRedirect/acquireTokenRedirect instead of popup
+   because popup flow breaks with common browser extensions
+   (password managers, ad blockers, tracking prevention).
+   
+   Flow:
+   1. User clicks "Sign in & scan" → sessionStorage flag set → page redirects to MS login
+   2. User signs in / MFA / consents on login.microsoftonline.com
+   3. MS redirects back to our app root with #code=... in the URL fragment
+   4. On app mount, handleRedirectPromise() extracts the code and gives us the token
+   5. We detect the sessionStorage flag and auto-resume the scan
    ============================================================ */
+const SECURESCORE_IN_PROGRESS_KEY = "securescore:scan_in_progress";
+const SECURESCORE_STATE_KEY = "securescore:post_redirect_state";
+
 let _msalInstancePromise = null;
 function getMsalInstance() {
   if (_msalInstancePromise) return _msalInstancePromise;
@@ -632,7 +641,9 @@ function getMsalInstance() {
       auth: {
         clientId: MSAL_CLIENT_ID,
         authority: "https://login.microsoftonline.com/organizations",
-        redirectUri: typeof window !== "undefined" ? window.location.origin + "/blank.html" : "",
+        redirectUri: typeof window !== "undefined" ? window.location.origin : "",
+        postLogoutRedirectUri: typeof window !== "undefined" ? window.location.origin : "",
+        navigateToLoginRequestUrl: false,
       },
       cache: {
         cacheLocation: "sessionStorage",
@@ -640,9 +651,6 @@ function getMsalInstance() {
       },
     });
     await instance.initialize();
-    /* Consume any lingering redirect response from a prior session so
-       a fresh loginPopup doesn't race with stale state. */
-    try { await instance.handleRedirectPromise(); } catch (_) {}
     return instance;
   })();
   return _msalInstancePromise;
@@ -651,46 +659,50 @@ function getMsalInstance() {
 /* ============================================================
    SECURE SCORE SCANNER — M365 lead magnet, live Graph API scan
    ============================================================ */
-function SecureScoreScanner({ onClose, onAskPete, mobile }) {
-  const [state, setState] = useState("ready"); /* ready | authenticating | scanning | success | error */
+function SecureScoreScanner({ onClose, onAskPete, mobile, autoResume }) {
+  const [state, setState] = useState(autoResume ? "scanning" : "ready"); /* ready | authenticating | scanning | success | error */
   const [error, setError] = useState("");
   const [scoreData, setScoreData] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
 
-  async function runScan() {
-    setState("authenticating");
-    setError("");
-    /* Declared at function scope so catch block can inspect HTTP status */
+  /* Auto-resume scan after MSAL redirect. Triggered when parent passes autoResume=true */
+  useEffect(() => {
+    if (autoResume) {
+      resumeScanAfterRedirect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoResume]);
+
+  async function resumeScanAfterRedirect() {
     let scoreResponse = null;
-
     try {
-      /* Use singleton — initialized once, reused across all scans */
       const msalInstance = await getMsalInstance();
-
-      const loginResponse = await msalInstance.loginPopup({
-        scopes: ["User.Read", "SecurityEvents.Read.All"],
-        prompt: "select_account",
-      });
-
-      const account = loginResponse.account;
+      const accounts = msalInstance.getAllAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No account found after sign-in. Please try again.");
+      }
+      const account = accounts[0];
       setUserInfo({
         name: account.name,
         username: account.username,
         tenantId: account.tenantId,
       });
 
-      setState("scanning");
-
-      const tokenRequest = {
-        scopes: ["SecurityEvents.Read.All"],
-        account,
-      };
-
+      /* Try silent token first; redirect if needed */
       let tokenResponse;
       try {
-        tokenResponse = await msalInstance.acquireTokenSilent(tokenRequest);
+        tokenResponse = await msalInstance.acquireTokenSilent({
+          scopes: ["SecurityEvents.Read.All"],
+          account,
+        });
       } catch (e) {
-        tokenResponse = await msalInstance.acquireTokenPopup(tokenRequest);
+        /* Silent failed — need interactive. Persist state & redirect again. */
+        sessionStorage.setItem(SECURESCORE_IN_PROGRESS_KEY, "true");
+        await msalInstance.acquireTokenRedirect({
+          scopes: ["SecurityEvents.Read.All"],
+          account,
+        });
+        return; /* page is redirecting; no further execution */
       }
 
       scoreResponse = await fetch(
@@ -704,7 +716,6 @@ function SecureScoreScanner({ onClose, onAskPete, mobile }) {
       }
 
       const scoreJson = await scoreResponse.json();
-
       if (!scoreJson.value || scoreJson.value.length === 0) {
         throw new Error("No Secure Score data available for this tenant. New tenants need ~24h to generate an initial score.");
       }
@@ -713,26 +724,47 @@ function SecureScoreScanner({ onClose, onAskPete, mobile }) {
       setState("success");
       trackEvent("securescore_scan_success");
     } catch (err) {
-      console.error("Secure Score scan error:", err);
+      console.error("Secure Score scan error (resume):", err);
       setState("error");
-      trackEvent("securescore_scan_error", { code: err.errorCode || "unknown" });
+      trackEvent("securescore_scan_error", { code: err.errorCode || "unknown", phase: "resume" });
+      handleScanError(err, scoreResponse);
+    }
+  }
 
-      const code = err.errorCode || "";
-      const msg = err.message || "";
+  async function runScan() {
+    setState("authenticating");
+    setError("");
+    try {
+      const msalInstance = await getMsalInstance();
+      /* Flag that we're starting a scan so the app knows to auto-resume after redirect */
+      sessionStorage.setItem(SECURESCORE_IN_PROGRESS_KEY, "true");
+      await msalInstance.loginRedirect({
+        scopes: ["User.Read", "SecurityEvents.Read.All"],
+        prompt: "select_account",
+      });
+      /* Execution ends here — the browser is now navigating to login.microsoftonline.com.
+         When the user returns, the app's mount-time handleRedirectPromise() picks up. */
+    } catch (err) {
+      console.error("Secure Score scan error (start):", err);
+      setState("error");
+      trackEvent("securescore_scan_error", { code: err.errorCode || "unknown", phase: "start" });
+      sessionStorage.removeItem(SECURESCORE_IN_PROGRESS_KEY);
+      handleScanError(err, null);
+    }
+  }
 
-      if (code === "user_cancelled") {
-        setError("Sign-in was cancelled. Click below to try again.");
-      } else if (code === "popup_window_error" || code === "empty_window_error") {
-        setError("The sign-in popup was blocked by your browser. Please allow popups for ask.techbypete.com and try again.");
-      } else if (code === "timed_out" || msg.includes("timed_out")) {
-        setError("The sign-in popup timed out. Most common causes: (1) your tenant admin has not granted consent for SecurityEvents.Read.All — check API permissions in Entra, (2) the Entra app's Supported account types is set to Single tenant instead of Multitenant, or (3) a browser extension is blocking cross-window communication. Try in an incognito window to rule out extensions.");
-      } else if (code === "consent_required" || msg.includes("consent")) {
-        setError("Your tenant admin must consent to the SecurityEvents.Read.All permission. Please have a Global Administrator run this scan, or contact Pete to arrange admin consent separately.");
-      } else if (msg.includes("Insufficient privileges") || msg.includes("Authorization_RequestDenied") || msg.includes("Forbidden") || (scoreResponse && scoreResponse.status === 403)) {
-        setError("This account doesn't have permission to read Secure Score. Please sign in with a Global Administrator, Security Administrator, or Security Reader account.");
-      } else {
-        setError(msg || "An unexpected error occurred. Please try again, or contact Pete if this persists.");
-      }
+  function handleScanError(err, scoreResponse) {
+    const code = err.errorCode || "";
+    const msg = err.message || "";
+
+    if (code === "user_cancelled") {
+      setError("Sign-in was cancelled. Click below to try again.");
+    } else if (code === "consent_required" || msg.includes("consent")) {
+      setError("Your tenant admin must consent to the SecurityEvents.Read.All permission. Please have a Global Administrator run this scan, or contact Pete to arrange admin consent separately.");
+    } else if (msg.includes("Insufficient privileges") || msg.includes("Authorization_RequestDenied") || msg.includes("Forbidden") || (scoreResponse && scoreResponse.status === 403)) {
+      setError("This account doesn't have permission to read Secure Score. Please sign in with a Global Administrator, Security Administrator, or Security Reader account.");
+    } else {
+      setError(msg || "An unexpected error occurred. Please try again, or contact Pete if this persists.");
     }
   }
 
@@ -800,8 +832,8 @@ For each item: estimated time to implement, expected score delta, and whether it
             <div style={{background:"rgba(94,106,210,0.06)",border:"1px solid rgba(94,106,210,0.18)",borderRadius:10,padding:16,marginBottom:14}}>
               <div style={{fontSize:13,color:"#e8eaed",fontWeight:600,marginBottom:8}}>What this does</div>
               <ul style={{margin:0,paddingLeft:18,fontSize:12.5,color:"#9ca3af",lineHeight:1.7}}>
-                <li>Signs you in with your Microsoft 365 admin account</li>
-                <li>Reads your tenant's current Secure Score from Microsoft Graph</li>
+                <li>Redirects you to Microsoft's official sign-in page</li>
+                <li>After sign-in, returns you here and reads your Secure Score</li>
                 <li>Shows the top gaps and generates a remediation plan</li>
                 <li>Everything runs in your browser — Pete never sees your credentials</li>
               </ul>
@@ -824,10 +856,10 @@ For each item: estimated time to implement, expected score delta, and whether it
           <div style={{padding:"40px 20px",textAlign:"center"}}>
             <div style={{width:40,height:40,border:"3px solid rgba(94,106,210,0.2)",borderTopColor:"#5e6ad2",borderRadius:"50%",margin:"0 auto 16px",animation:"msalspin 0.8s linear infinite"}}/>
             <div style={{fontSize:14,color:"#e8eaed",fontWeight:500,marginBottom:4}}>
-              {state === "authenticating" ? "Waiting for sign-in..." : "Fetching Secure Score..."}
+              {state === "authenticating" ? "Redirecting to Microsoft sign-in..." : "Fetching Secure Score..."}
             </div>
             <div style={{fontSize:12,color:"#9ca3af"}}>
-              {state === "authenticating" ? "Complete the login in the popup window" : "Calling Microsoft Graph API"}
+              {state === "authenticating" ? "You'll be returned here automatically after signing in" : "Calling Microsoft Graph API"}
             </div>
             <style>{`@keyframes msalspin { to { transform: rotate(360deg); } }`}</style>
           </div>
@@ -997,6 +1029,7 @@ export default function App() {
   const [showMeetPete, setShowMeetPete] = useState(false);
   const [showROI, setShowROI] = useState(false);
   const [showSecureScoreScan, setShowSecureScoreScan] = useState(false);
+  const [secureScoreAutoResume, setSecureScoreAutoResume] = useState(false);
   const [showPortal, setShowPortal] = useState(false);
   const [showLeadCapture, setShowLeadCapture] = useState(false);
   const [showKnowledgeReview, setShowKnowledgeReview] = useState(false);
@@ -1111,6 +1144,34 @@ export default function App() {
     if (saved.length > 0) { setSessions(saved); setActiveId(saved[0].id); }
     const savedEmail = localStorage.getItem("techbypete_email");
     if (savedEmail) setCapturedEmail(savedEmail);
+
+    /* MSAL redirect response handler — runs once on every app load.
+       If the user is returning from a Microsoft sign-in redirect, this picks up
+       the auth code from the URL fragment and stores the account in the MSAL cache.
+       Then we auto-open the Secure Score scanner modal and trigger its resume flow. */
+    (async () => {
+      try {
+        const inProgress = sessionStorage.getItem(SECURESCORE_IN_PROGRESS_KEY) === "true";
+        if (!inProgress) return; /* not a secure-score redirect — skip */
+
+        const msalInstance = await getMsalInstance();
+        const response = await msalInstance.handleRedirectPromise();
+        if (response && response.account) {
+          /* Successful return from Microsoft. Clear flag, open modal, resume scan. */
+          sessionStorage.removeItem(SECURESCORE_IN_PROGRESS_KEY);
+          setShowSecureScoreScan(true);
+          setSecureScoreAutoResume(true);
+          trackEvent("securescore_redirect_returned");
+        } else {
+          /* We had the flag but no redirect response — likely the user hit back
+             or closed the Microsoft page. Clear the flag so we don't loop. */
+          sessionStorage.removeItem(SECURESCORE_IN_PROGRESS_KEY);
+        }
+      } catch (err) {
+        console.error("MSAL redirect handling failed:", err);
+        sessionStorage.removeItem(SECURESCORE_IN_PROGRESS_KEY);
+      }
+    })();
 
     return () => window.removeEventListener("resize", check);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2069,7 +2130,7 @@ export default function App() {
 
         {showROI && <ROICalculator onClose={() => setShowROI(false)} onAskPete={(u,s,a,sv) => send(`Based on my environment: ${u} users, $${s}/month Azure spend, ${a}-year old infrastructure. Your calculator estimates ~$${sv.toLocaleString()} annual savings. Design me a specific optimization plan.`)} mobile={mobile}/>}
 
-        {showSecureScoreScan && <SecureScoreScanner onClose={() => setShowSecureScoreScan(false)} onAskPete={(prompt) => send(prompt)} mobile={mobile}/>}
+        {showSecureScoreScan && <SecureScoreScanner onClose={() => { setShowSecureScoreScan(false); setSecureScoreAutoResume(false); }} onAskPete={(prompt) => send(prompt)} mobile={mobile} autoResume={secureScoreAutoResume}/>}
 
         {showLeadCapture && <LeadCaptureModal onClose={() => setShowLeadCapture(false)} onSubmit={(email) => { setCapturedEmail(email); setShowLeadCapture(false); }}/>}
 
