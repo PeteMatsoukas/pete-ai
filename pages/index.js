@@ -985,6 +985,12 @@ export default function App() {
 
   /* Templates accordion */
   const [openCategory, setOpenCategory] = useState(null);
+  const [openSections, setOpenSections] = useState(() => new Set()); /* all sidebar sections collapsed by default */
+  const toggleSection = (id) => setOpenSections(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   /* Modals */
   const [showContact, setShowContact] = useState(false);
@@ -1585,26 +1591,36 @@ export default function App() {
           <div style={{flex:1,overflowY:"auto",padding:"0 8px"}}>
 
             {/* Start section */}
-            <div style={{marginBottom:6}}>
-              <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px"}}>START</div>
-              <button className={"sb-item-btn" + (activeTab==="projects"?" active":"")} onClick={() => setActiveTab("projects")} style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:activeTab==="projects"?"#e8eaed":"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>🏗️</span>
-                <span style={{flex:1}}>IT Projects</span>
+            <div style={{marginBottom:2}}>
+              <button onClick={() => toggleSection("start")} style={{width:"100%",background:"transparent",border:"none",fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                <span>START</span>
+                <span style={{fontSize:10,color:"#6b7280",transform:openSections.has("start")?"rotate(90deg)":"rotate(0)",transition:"transform 0.15s"}}>▸</span>
               </button>
-              <button className={"sb-item-btn" + (activeTab==="training"?" active":"")} onClick={() => setActiveTab("training")} style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:activeTab==="training"?"#e8eaed":"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>🎓</span>
-                <span style={{flex:1}}>Training</span>
-              </button>
+              {openSections.has("start") && (
+                <div>
+                  <button className={"sb-item-btn" + (activeTab==="projects"?" active":"")} onClick={() => setActiveTab("projects")} style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:activeTab==="projects"?"#e8eaed":"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>🏗️</span>
+                    <span style={{flex:1}}>IT Projects</span>
+                  </button>
+                  <button className={"sb-item-btn" + (activeTab==="training"?" active":"")} onClick={() => setActiveTab("training")} style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:activeTab==="training"?"#e8eaed":"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>🎓</span>
+                    <span style={{flex:1}}>Training</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Templates accordion - only for projects mode */}
             {activeTab === "projects" && (
-              <div style={{marginBottom:6}}>
-                <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{marginBottom:2}}>
+                <button onClick={() => toggleSection("templates")} style={{width:"100%",background:"transparent",border:"none",fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
                   <span>TEMPLATES</span>
-                  <span style={{fontSize:10,background:"rgba(255,255,255,0.06)",padding:"1px 6px",borderRadius:10}}>{TEMPLATE_CATEGORIES.reduce((a,c) => a+c.items.length, 0)}</span>
-                </div>
-                {TEMPLATE_CATEGORIES.map(cat => (
+                  <span style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,background:"rgba(255,255,255,0.06)",padding:"1px 6px",borderRadius:10,color:"#9ca3af",fontWeight:500}}>{TEMPLATE_CATEGORIES.reduce((a,c) => a+c.items.length, 0)}</span>
+                    <span style={{fontSize:10,color:"#6b7280",transform:openSections.has("templates")?"rotate(90deg)":"rotate(0)",transition:"transform 0.15s"}}>▸</span>
+                  </span>
+                </button>
+                {openSections.has("templates") && TEMPLATE_CATEGORIES.map(cat => (
                   <div key={cat.id}>
                     <button onClick={() => setOpenCategory(openCategory===cat.id ? null : cat.id)} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
                       <span style={{fontSize:14,width:18,textAlign:"center"}}>{cat.icon}</span>
@@ -1628,9 +1644,15 @@ export default function App() {
 
             {/* Training templates */}
             {activeTab === "training" && (
-              <div style={{marginBottom:6}}>
-                <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px"}}>TRAINING PROGRAMS</div>
-                {TRAINING_TEMPLATES.map((item, i) => (
+              <div style={{marginBottom:2}}>
+                <button onClick={() => toggleSection("training")} style={{width:"100%",background:"transparent",border:"none",fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                  <span>TRAINING PROGRAMS</span>
+                  <span style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,background:"rgba(255,255,255,0.06)",padding:"1px 6px",borderRadius:10,color:"#9ca3af",fontWeight:500}}>{TRAINING_TEMPLATES.length}</span>
+                    <span style={{fontSize:10,color:"#6b7280",transform:openSections.has("training")?"rotate(90deg)":"rotate(0)",transition:"transform 0.15s"}}>▸</span>
+                  </span>
+                </button>
+                {openSections.has("training") && TRAINING_TEMPLATES.map((item, i) => (
                   <button key={i} onClick={() => send(item.q)} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",fontSize:12.5,color:"#9ca3af",marginBottom:1,textAlign:"left",lineHeight:1.35}}>
                     <span style={{fontSize:14,marginTop:1}}>{item.icon}</span>
                     <span style={{flex:1}}>{item.q}</span>
@@ -1640,46 +1662,69 @@ export default function App() {
             )}
 
             {/* Tools */}
-            <div style={{marginBottom:6}}>
-              <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px"}}>TOOLS</div>
-              <button onClick={() => { setShowSecureScoreScan(true); trackEvent("tool_securescore_open"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>🛡️</span>
-                <span style={{flex:1}}>Scan Secure Score</span>
-                <span style={{fontSize:9,background:"rgba(38,208,124,0.15)",color:"#26d07c",padding:"1px 6px",borderRadius:10,border:"1px solid rgba(38,208,124,0.25)",letterSpacing:"0.04em",fontWeight:600,textTransform:"uppercase"}}>New</span>
+            <div style={{marginBottom:2}}>
+              <button onClick={() => toggleSection("tools")} style={{width:"100%",background:"transparent",border:"none",fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                <span>TOOLS</span>
+                <span style={{fontSize:10,color:"#6b7280",transform:openSections.has("tools")?"rotate(90deg)":"rotate(0)",transition:"transform 0.15s"}}>▸</span>
               </button>
-              <button onClick={() => { setShowROI(true); trackEvent("tool_roi_open"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>📊</span>
-                <span style={{flex:1}}>ROI Calculator</span>
-              </button>
-              <button onClick={() => { fileRef.current?.setAttribute("data-mode", "competitor"); fileRef.current?.click(); trackEvent("tool_analyze_proposal"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>🔍</span>
-                <span style={{flex:1}}>Analyze Proposal</span>
-              </button>
-              <button onClick={() => { send("Generate Pete's Weekly Take — search for the latest trending Microsoft, Azure, and M365 news from the past 7 days and write a blog post for www.techbypete.com in Pete's voice."); trackEvent("tool_weekly_take"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>✍️</span>
-                <span style={{flex:1}}>Weekly Take</span>
-              </button>
+              {openSections.has("tools") && (
+                <div>
+                  <button onClick={() => { setShowSecureScoreScan(true); trackEvent("tool_securescore_open"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>🛡️</span>
+                    <span style={{flex:1}}>Scan Secure Score</span>
+                    <span style={{fontSize:9,background:"rgba(38,208,124,0.15)",color:"#26d07c",padding:"1px 6px",borderRadius:10,border:"1px solid rgba(38,208,124,0.25)",letterSpacing:"0.04em",fontWeight:600,textTransform:"uppercase"}}>New</span>
+                  </button>
+                  <button onClick={() => { setShowROI(true); trackEvent("tool_roi_open"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>📊</span>
+                    <span style={{flex:1}}>ROI Calculator</span>
+                  </button>
+                  <button onClick={() => { fileRef.current?.setAttribute("data-mode", "competitor"); fileRef.current?.click(); trackEvent("tool_analyze_proposal"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>🔍</span>
+                    <span style={{flex:1}}>Analyze Proposal</span>
+                  </button>
+                  <button onClick={() => { send("Generate Pete's Weekly Take — search for the latest trending Microsoft, Azure, and M365 news from the past 7 days and write a blog post for www.techbypete.com in Pete's voice."); trackEvent("tool_weekly_take"); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>✍️</span>
+                    <span style={{flex:1}}>Weekly Take</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Admin */}
-            <div style={{marginBottom:6}}>
-              <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px"}}>ADMIN</div>
-              <button onClick={() => { setShowKnowledgeReview(true); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>📚</span>
-                <span style={{flex:1}}>Saved Knowledge</span>
-                {learnedKnowledge.length > 0 && <span style={{fontSize:10,background:"rgba(94,106,210,0.2)",color:"#a5b4fc",padding:"1px 6px",borderRadius:10}}>{learnedKnowledge.length}</span>}
+            <div style={{marginBottom:2}}>
+              <button onClick={() => toggleSection("admin")} style={{width:"100%",background:"transparent",border:"none",fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                <span>ADMIN</span>
+                <span style={{display:"flex",alignItems:"center",gap:6}}>
+                  {learnedKnowledge.length > 0 && <span style={{fontSize:10,background:"rgba(94,106,210,0.2)",color:"#a5b4fc",padding:"1px 6px",borderRadius:10,fontWeight:500}}>{learnedKnowledge.length}</span>}
+                  <span style={{fontSize:10,color:"#6b7280",transform:openSections.has("admin")?"rotate(90deg)":"rotate(0)",transition:"transform 0.15s"}}>▸</span>
+                </span>
               </button>
-              <button onClick={runVendorUpdate} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
-                <span style={{fontSize:14,width:18,textAlign:"center"}}>🔄</span>
-                <span style={{flex:1}}>Update Knowledge</span>
-              </button>
+              {openSections.has("admin") && (
+                <div>
+                  <button onClick={() => { setShowKnowledgeReview(true); }} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>📚</span>
+                    <span style={{flex:1}}>Saved Knowledge</span>
+                    {learnedKnowledge.length > 0 && <span style={{fontSize:10,background:"rgba(94,106,210,0.2)",color:"#a5b4fc",padding:"1px 6px",borderRadius:10}}>{learnedKnowledge.length}</span>}
+                  </button>
+                  <button onClick={runVendorUpdate} className="sb-item-btn" style={{padding:"7px 10px",borderRadius:7,display:"flex",alignItems:"center",gap:10,cursor:"pointer",fontSize:13,color:"#9ca3af",marginBottom:1}}>
+                    <span style={{fontSize:14,width:18,textAlign:"center"}}>🔄</span>
+                    <span style={{flex:1}}>Update Knowledge</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Recents */}
             {sessions.length > 0 && (
-              <div style={{marginBottom:6}}>
-                <div style={{fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px"}}>RECENTS</div>
-                {sessions.slice(0, 15).map(s => (
+              <div style={{marginBottom:2}}>
+                <button onClick={() => toggleSection("recents")} style={{width:"100%",background:"transparent",border:"none",fontSize:11,fontWeight:600,color:"#6b7280",letterSpacing:"0.04em",padding:"12px 10px 6px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                  <span>RECENTS</span>
+                  <span style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,background:"rgba(255,255,255,0.06)",padding:"1px 6px",borderRadius:10,color:"#9ca3af",fontWeight:500}}>{Math.min(sessions.length, 15)}</span>
+                    <span style={{fontSize:10,color:"#6b7280",transform:openSections.has("recents")?"rotate(90deg)":"rotate(0)",transition:"transform 0.15s"}}>▸</span>
+                  </span>
+                </button>
+                {openSections.has("recents") && sessions.slice(0, 15).map(s => (
                   <div key={s.id} className="chat-item" onClick={() => switchChat(s.id)} style={{padding:"6px 10px",borderRadius:6,fontSize:12.5,color:s.id===activeId?"#e8eaed":"#9ca3af",cursor:"pointer",display:"flex",alignItems:"center",gap:6,whiteSpace:"nowrap",overflow:"hidden",background:s.id===activeId?"rgba(94,106,210,0.12)":"transparent",marginBottom:1}}>
                     <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis"}}>{s.title}</span>
                     <button className="delete-btn" onClick={(e) => { e.stopPropagation(); deleteChat(s.id); }} style={{background:"transparent",border:"none",color:"#6b7280",cursor:"pointer",fontSize:13,padding:"0 4px"}}>×</button>
@@ -1754,30 +1799,49 @@ export default function App() {
                 /* Welcome screen */
                 <div style={{textAlign:"center",paddingTop:mobile?20:40}}>
                   <img src="/techbypete-logo.png" alt="TechByPete" style={{width:64,height:64,borderRadius:16,objectFit:"cover",margin:"0 auto 20px",display:"block",boxShadow:"0 4px 20px rgba(94,106,210,0.25)"}}/>
+
+                  {/* Pill toggle — IT Projects / Training. Each click auto-opens the matching sidebar section. */}
+                  <div style={{display:"inline-flex",background:"#12161d",border:"1px solid rgba(255,255,255,0.08)",borderRadius:999,padding:4,marginBottom:18,gap:2}}>
+                    <button onClick={() => { setActiveTab("projects"); setOpenSections(prev => { const n = new Set(prev); n.add("templates"); n.delete("training"); return n; }); }} style={{background:activeTab==="projects"?"#5e6ad2":"transparent",border:"none",borderRadius:999,padding:mobile?"7px 14px":"8px 18px",color:activeTab==="projects"?"#fff":"#9ca3af",fontSize:mobile?12.5:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
+                      <span style={{fontSize:14}}>🏗️</span> IT Projects
+                    </button>
+                    <button onClick={() => { setActiveTab("training"); setOpenSections(prev => { const n = new Set(prev); n.add("training"); n.delete("templates"); return n; }); }} style={{background:activeTab==="training"?"#5e6ad2":"transparent",border:"none",borderRadius:999,padding:mobile?"7px 14px":"8px 18px",color:activeTab==="training"?"#fff":"#9ca3af",fontSize:mobile?12.5:13,fontWeight:500,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6,transition:"all .15s"}}>
+                      <span style={{fontSize:14}}>🎓</span> Training
+                    </button>
+                  </div>
+
                   <h1 style={{fontSize:mobile?24:28,fontWeight:600,letterSpacing:"-0.02em",marginBottom:10,color:"#ffffff"}}>
                     {activeTab === "projects" ? "Describe your IT challenge" : "Build your training roadmap"}
                   </h1>
-                  <p style={{fontSize:mobile?13.5:15,color:"#9ca3af",lineHeight:1.5,maxWidth:520,margin:"0 auto 32px"}}>
+                  <p style={{fontSize:mobile?13.5:15,color:"#9ca3af",lineHeight:1.5,maxWidth:520,margin:"0 auto 24px"}}>
                     {activeTab === "projects"
-                      ? "Get a free Assessment, Solution Design, or Statement of Work — backed by 15+ years of hands-on expertise across Azure, M365, on-prem, and networking."
+                      ? "Get a free Assessment, Solution Design, or Statement of Work"
                       : "Plan a certification path for your team"}
                   </p>
 
-                  <div style={{display:"grid",gridTemplateColumns:mobile?"1fr":"1fr 1fr",gap:10,maxWidth:620,margin:"0 auto"}}>
-                    {(activeTab === "projects" ? QUICK_PROMPTS : TRAINING_QUICK_PROMPTS).map((p, i) => (
-                      <button key={i} onClick={() => send(p.title)} style={{background:"#12161d",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"14px 16px",textAlign:"left",cursor:"pointer",display:"flex",alignItems:"flex-start",gap:10,fontFamily:"inherit",color:"inherit",transition:"all 0.15s"}} onMouseEnter={e => { e.currentTarget.style.background = "#1a1f28"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; }} onMouseLeave={e => { e.currentTarget.style.background = "#12161d"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; }}>
-                        <span style={{fontSize:16,color:"#a5b4fc",flexShrink:0,marginTop:1}}>{p.icon}</span>
-                        <div>
-                          <div style={{fontSize:13.5,color:"#e8eaed",lineHeight:1.4}}>{p.title}</div>
-                          <div style={{fontSize:11.5,color:"#6b7280",marginTop:3}}>{p.sub}</div>
-                        </div>
-                      </button>
-                    ))}
+                  {/* Directional nudge — points user to the sidebar where the full options are now revealed */}
+                  <div style={{display:"inline-flex",alignItems:"center",gap:10,padding:"10px 16px",background:"rgba(94,106,210,0.08)",border:"1px solid rgba(94,106,210,0.2)",borderRadius:10,fontSize:mobile?12.5:13,color:"#a5b4fc"}}>
+                    <span style={{fontSize:16}}>{activeTab === "projects" ? "📋" : "🎓"}</span>
+                    <span>
+                      {activeTab === "projects"
+                        ? <>Browse <strong style={{color:"#e8eaed",fontWeight:600}}>12 project templates</strong> in the sidebar, or type your question below</>
+                        : <>Browse <strong style={{color:"#e8eaed",fontWeight:600}}>training programs</strong> in the sidebar, or type your question below</>}
+                    </span>
                   </div>
 
-                  {!mobile && (
-                    <div style={{marginTop:28,fontSize:11,color:"#6b7280"}}>
-                      Or browse templates in the sidebar · Type your own question below
+                  {/* Cross-promote the other mode */}
+                  {activeTab === "projects" && (
+                    <div style={{marginTop:16}}>
+                      <button onClick={() => { setActiveTab("training"); setOpenSections(prev => { const n = new Set(prev); n.add("training"); n.delete("templates"); return n; }); }} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 16px",color:"#9ca3af",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:8}} onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(165,180,252,0.35)"; e.currentTarget.style.color = "#a5b4fc"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "#9ca3af"; }}>
+                        <span>🎓</span> Looking for team training instead? <span style={{color:"#a5b4fc",fontWeight:500}}>Browse courses →</span>
+                      </button>
+                    </div>
+                  )}
+                  {activeTab === "training" && (
+                    <div style={{marginTop:16}}>
+                      <button onClick={() => { setActiveTab("projects"); setOpenSections(prev => { const n = new Set(prev); n.add("templates"); n.delete("training"); return n; }); }} style={{background:"transparent",border:"1px dashed rgba(255,255,255,0.12)",borderRadius:10,padding:"10px 16px",color:"#9ca3af",fontSize:12.5,cursor:"pointer",fontFamily:"inherit",display:"inline-flex",alignItems:"center",gap:8}} onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(165,180,252,0.35)"; e.currentTarget.style.color = "#a5b4fc"; }} onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "#9ca3af"; }}>
+                        <span>🏗️</span> Need an IT project or SOW instead? <span style={{color:"#a5b4fc",fontWeight:500}}>Browse solutions →</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1970,20 +2034,31 @@ export default function App() {
               <div style={{textAlign:"center",marginBottom:20}}>
                 <img src="/pete.jpg" alt="Pete" style={{width:90,height:90,borderRadius:"50%",objectFit:"cover",objectPosition:"center top",border:"2px solid rgba(94,106,210,0.5)",margin:"0 auto 12px",display:"block"}}/>
                 <div style={{fontSize:20,fontWeight:600,color:"#ffffff",letterSpacing:"-0.01em"}}>Pete Matsoukas</div>
-                <div style={{fontSize:13,color:"#a5b4fc",marginTop:4}}>IT Solutions Architect · MCT Trainer</div>
+                <div style={{fontSize:13,color:"#a5b4fc",marginTop:4}}>IT Solutions Architect</div>
               </div>
-              <p style={{fontSize:13.5,color:"#d1d5db",lineHeight:1.6,marginBottom:16,textAlign:"center"}}>15+ years designing production IT solutions across Azure, M365, on-premises, and networking. Active Microsoft Certified Trainer.</p>
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
-                {[
-                  {i:"🪟",l:"Microsoft Architect & MCT"},
-                  {i:"🔵",l:"VMware Expert"},
-                  {i:"🔗",l:"Networking Expert"},
-                ].map((b,i) => (
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10}}>
-                    <span style={{fontSize:18}}>{b.i}</span>
-                    <span style={{fontSize:14,color:"#e8eaed",fontWeight:600,letterSpacing:"-0.005em"}}>{b.l}</span>
-                  </div>
-                ))}
+              <p style={{fontSize:13.5,color:"#d1d5db",lineHeight:1.6,marginBottom:16,textAlign:"center"}}>15+ years designing production IT solutions across on-premises / hybrid Windows Server environments and networking, Microsoft Azure infrastructure, and M365 environments. Active Microsoft Certified Trainer.</p>
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:10,color:"#6b7280",letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,marginBottom:10,textAlign:"center"}}>Specialist Expertise</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {[
+                    {i:"☁️",l:"Azure",d:"Cloud, migration, FinOps, DR"},
+                    {i:"🔒",l:"M365 Security",d:"Zero Trust, Defender, Sentinel"},
+                    {i:"📧",l:"M365 & Intune",d:"Exchange, Teams, Entra ID"},
+                    {i:"🖥️",l:"VMware",d:"vSphere, vSAN, cluster design"},
+                    {i:"🛡️",l:"FortiGate",d:"SD-WAN, HA firewalls, ZTNA"},
+                    {i:"💾",l:"Veeam",d:"Backup, immutable, DR"},
+                    {i:"🔗",l:"Network",d:"Cisco, UniFi, wireless, VLANs"},
+                    {i:"🪟",l:"Windows Server",d:"AD, clustering, Hyper-V, PKI"},
+                  ].map((b,i) => (
+                    <div key={i} style={{display:"flex",alignItems:"flex-start",gap:9,padding:"10px 12px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:9}}>
+                      <span style={{fontSize:16,marginTop:1,flexShrink:0}}>{b.i}</span>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontSize:12.5,color:"#e8eaed",fontWeight:600,lineHeight:1.2,letterSpacing:"-0.005em"}}>{b.l}</div>
+                        <div style={{fontSize:10.5,color:"#6b7280",marginTop:3,lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{b.d}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               <button onClick={() => { setShowMeetPete(false); setShowContact(true); }} style={{width:"100%",background:"#5e6ad2",border:"none",borderRadius:10,padding:"12px",color:"#fff",fontSize:13,fontWeight:500,cursor:"pointer"}}>
                 Contact Pete →
