@@ -774,7 +774,7 @@ async function callAnthropic(messages, stream = false, mode = "projects", userQu
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       max_tokens: 8192,
       stream,
       system: buildSystemPrompt(mode, userQuery, language, learnedKnowledge),
