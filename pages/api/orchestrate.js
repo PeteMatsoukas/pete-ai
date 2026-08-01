@@ -66,28 +66,24 @@ const SPECIALISTS = {
    ORCHESTRATOR LOGIC
    ============================================ */
 
-/* Detect which specialists are needed based on user query */
 function detectSpecialists(query) {
   const lower = query.toLowerCase();
   const scored = Object.entries(SPECIALISTS).map(([key, spec]) => {
     let score = 0;
     for (const kw of spec.keywords) {
-      if (lower.includes(kw)) score += kw.length; /* longer keywords = more specific match */
+      if (lower.includes(kw)) score += kw.length;
     }
     return { key, spec, score };
   }).filter(s => s.score > 0).sort((a, b) => b.score - a.score);
 
-  /* Multi-agent triggers: 2+ domains OR explicitly complex question */
   const complexityMarkers = ["migrate", "deploy", "design", "architect", "plan", "sow", "statement of work", "solution", "project", "complete", "end-to-end", "full"];
   const isComplex = complexityMarkers.some(m => lower.includes(m));
 
-  /* Return top specialists — if only 1 matched, still use multi-agent if complex */
-  if (scored.length >= 2) return scored.slice(0, 3); /* max 3 specialists to fit 60s Vercel timeout */
+  if (scored.length >= 2) return scored.slice(0, 3);
   if (scored.length === 1 && isComplex) return scored;
   return [];
 }
 
-/* Load specialist knowledge from file */
 function loadSpecialistKnowledge(filename) {
   try {
     const fs = require("fs");
@@ -98,8 +94,7 @@ function loadSpecialistKnowledge(filename) {
   } catch { return ""; }
 }
 
-/* Call Anthropic API for a single specialist */
-async function callSpecialist(specialist, userQuery, conversationHistory = []) {
+async function callSpecialist(specialist, userQuery) {
   const knowledge = loadSpecialistKnowledge(specialist.spec.file);
   const systemPrompt = `${specialist.spec.prompt}
 
@@ -124,7 +119,7 @@ Provide a focused, concise analysis in your domain. Structure your response as:
 [Concrete pricing range and timeline from your specialist knowledge]
 
 **Dependencies on other domains:**
-[What other specialists need to coordinate with you — e.g., "FortiGate VPN must be in place before Azure migration begins"]
+[What other specialists need to coordinate with you]
 
 Be focused. 400-600 words max. Do NOT try to cover domains outside your expertise.`;
 
@@ -149,11 +144,9 @@ Be focused. 400-600 words max. Do NOT try to cover domains outside your expertis
   }
 
   const data = await response.json();
-  const text = data.content?.map(b => b.text || "").join("") || "";
-  return text;
+  return data.content?.map(b => b.text || "").join("") || "";
 }
 
-/* Final orchestrator call — Pete assembles all specialist outputs */
 async function assembleSolution(userQuery, specialistOutputs) {
   const systemPrompt = `You are Pete Matsoukas — lead IT Solutions Architect. Your team of specialists has analyzed a client request and provided their domain-specific sections. Your job is to:
 
@@ -213,9 +206,21 @@ Now assemble the unified solution for the client.`;
 }
 
 /* ============================================
-   SECURITY (Shared with /api/chat)
+   SECURITY
    ============================================ */
 const ipTracker = new Map();
+
+const ALLOWED_ORIGINS = [
+  "https://ask.techbypete.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+];
+
+function isAllowedOrigin(req) {
+  const origin = req.headers["origin"] || req.headers["referer"] || "";
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+}
 
 function getRateLimit(ip) {
   const now = Date.now();
@@ -228,26 +233,40 @@ function getRateLimit(ip) {
 
 function isBot(req) {
   const ua = (req.headers["user-agent"] || "").toLowerCase();
-  if (!ua || ua.length < 10) return true;
-  return ["bot","crawler","spider","scraper","curl","wget","python-requests","httpie","postman","insomnia"].some(p => ua.includes(p));
+  if (!ua || ua.length < 20) return true;
+  const botPatterns = [
+    "bot", "crawler", "spider", "scraper",
+    "curl/", "wget/", "python-requests", "python-urllib",
+    "httpie", "postman", "insomnia", "go-http-client",
+    "java/", "okhttp", "axios", "node-fetch",
+    "libwww-perl", "lwp-", "mechanize",
+  ];
+  if (botPatterns.some(p => ua.includes(p))) return true;
+  const hasBrowserSignal = ua.includes("mozilla") || ua.includes("chrome") || ua.includes("safari") || ua.includes("firefox") || ua.includes("edge");
+  return !hasBrowserSignal;
 }
 
+/* ============================================
+   CONFIG
+   ============================================ */
 export const config = {
   api: { responseLimit: false },
-  maxDuration: 60, /* Vercel Hobby plan max */
+  maxDuration: 60,
 };
 
 /* ============================================
    HANDLER
    ============================================ */
-/* Origin validation — only accept requests from your own frontend */
-  const ALLOWED_ORIGINS = ["https://ask.techbypete.com", "http://localhost:3000"];
-  const _origin = req.headers["origin"] || req.headers["referer"] || "";
-  if (!ALLOWED_ORIGINS.some(o => _origin.startsWith(o))) {
+export default async function handler(req, res) {
+
+  /* --- Origin Validation --- */
+  if (!isAllowedOrigin(req)) {
     return res.status(403).json({ error: "Forbidden" });
   }
+
   if (req.method !== "POST") return res.status(405).end();
 
+  /* --- Bot Detection --- */
   if (isBot(req)) return res.status(403).json({ error: "Access denied" });
 
   const { messages } = req.body;
@@ -261,23 +280,23 @@ export const config = {
     return res.status(400).json({ error: "Invalid query" });
   }
 
-  /* Rate limiting */
+  /* --- Rate Limiting --- */
   const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.socket?.remoteAddress || "unknown";
   const rateRecord = getRateLimit(ip);
-  if (rateRecord.hits.length >= 10) { /* Stricter limit for multi-agent */
+  if (rateRecord.hits.length >= 10) {
     return res.status(429).json({ error: "rate_limited", message: "Multi-specialist analysis has a lower rate limit. Please wait a few minutes." });
   }
   rateRecord.hits.push(Date.now());
   rateRecord.dailyHits++;
 
-  /* Detect which specialists to consult */
+  /* --- Detect Specialists --- */
   const specialists = detectSpecialists(userQuery);
 
   if (specialists.length === 0) {
     return res.status(200).json({ error: "no_specialists", message: "This question doesn't require multi-specialist analysis. Try the regular chat." });
   }
 
-  /* Set up SSE — Vercel requires these headers and immediate flush */
+  /* --- SSE Setup --- */
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
@@ -287,7 +306,6 @@ export const config = {
   });
   res.flushHeaders();
 
-  /* Send immediate keepalive so Vercel opens the stream */
   res.write(": connected\n\n");
   if (typeof res.flush === "function") res.flush();
 
@@ -296,7 +314,6 @@ export const config = {
     if (typeof res.flush === "function") res.flush();
   };
 
-  /* Keepalive ping every 15s to prevent Vercel from closing the connection */
   const keepaliveInterval = setInterval(() => {
     try { res.write(": ping\n\n"); if (typeof res.flush === "function") res.flush(); } catch {}
   }, 15000);
@@ -322,7 +339,7 @@ export const config = {
 
     const specialistOutputs = await Promise.all(specialistPromises);
 
-    /* Step 3: Orchestrator assembles final solution (streamed) */
+    /* Step 3: Assemble final solution (streamed) */
     send("assembly_start", { specialistCount: specialists.length });
 
     const assemblyResponse = await assembleSolution(userQuery, specialistOutputs);
