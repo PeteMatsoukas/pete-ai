@@ -1,6 +1,7 @@
 // TechByPete AI Agent v3.0 — 2026 Linear-Style Redesign
 import { useState, useRef, useEffect } from "react";
 
+
 const CONTACT = {
   email: "p.matsoukas@techbypete.com",
   phone: "+306909596515",
