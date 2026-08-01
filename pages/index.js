@@ -1423,7 +1423,62 @@ export default function App() {
          orchestration adds 15-30s of overhead that frequently pushes the response
          past the 60s Vercel Hobby timeout. Bypass the orchestrator for these. */
       const isSecureScoreRequest = typeof t === "string" && t.startsWith("I just ran the Secure Score Scanner");
-      const useOrchestrator = !isSecureScoreRequest && detectComplexQuery(t) && !currentFile;
+
+      /* Security Assessment — detect intent and run live scans before calling Claude.
+         We call /api/security-assess.js first, get structured JSON results, then inject
+         those results into the chat prompt so Claude can interpret and explain them. */
+      const securityKeywords = /\b(ssl|tls|certificate|cert|dns|mx record|spf|dkim|dmarc|nameserver|tenant.?id|entra.?id|m365 tenant|microsoft 365 tenant|domain.*score|security.*score|check.*domain|scan.*domain|assess.*domain|domain.*assess|dns lookup|security.*check|check.*security)\b/i;
+      const hasDomain = /\b([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}\b/.test(t);
+      const isSecurityAssessment = securityKeywords.test(t) && hasDomain && !currentFile;
+
+      if (isSecurityAssessment) {
+        try {
+          setStreamingText("🔍 Running live security assessment...");
+          const assessRes = await fetch("/api/security-assess", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: t }),
+          });
+          if (assessRes.ok) {
+            const assessData = await assessRes.json();
+            if (assessData.domain && assessData.assessments) {
+              /* Inject the raw scan results into the prompt for Claude to interpret */
+              const scanSummary = `
+=== SECURITY ASSESSMENT RESULTS ===
+Domain assessed: ${assessData.domain}
+Timestamp: ${assessData.timestamp}
+Assessment types run: ${assessData.requestedTypes.join(", ")}
+
+${assessData.assessments.ssl ? `--- SSL/TLS ASSESSMENT (from SSL Labs) ---
+${JSON.stringify(assessData.assessments.ssl, null, 2)}
+Full report: https://www.ssllabs.com/ssltest/analyze.html?d=${assessData.domain}
+` : ""}
+${assessData.assessments.m365 ? `--- M365 / ENTRA ID TENANT (from Microsoft OpenID) ---
+${JSON.stringify(assessData.assessments.m365, null, 2)}
+Reference: https://whatismytenantid.cloud/
+` : ""}
+${assessData.assessments.dns ? `--- DNS RECORDS & EMAIL SECURITY (from Google DNS API) ---
+${JSON.stringify(assessData.assessments.dns, null, 2)}
+Reference: https://www.securedomainscore.com/
+` : ""}
+=== END ASSESSMENT DATA ===
+
+The user asked: "${t}"
+Please analyze the assessment results above and provide a comprehensive security report for ${assessData.domain}.`;
+
+              /* Replace the last user message content with the enriched prompt */
+              apiMessages[apiMessages.length - 1] = { role: "user", content: scanSummary };
+              setStreamingText("🔍 Analyzing results with Pete's security expertise...");
+            }
+          }
+        } catch (assessErr) {
+          console.warn("Security assessment fetch failed:", assessErr.message);
+          /* Continue with original message if assessment fails — graceful degradation */
+          setStreamingText("");
+        }
+      }
+
+      const useOrchestrator = !isSecureScoreRequest && !isSecurityAssessment && detectComplexQuery(t) && !currentFile;
       const endpoint = useOrchestrator ? "/api/orchestrate" : "/api/chat";
 
       if (useOrchestrator) {
