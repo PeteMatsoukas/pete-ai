@@ -938,6 +938,19 @@ const ipTracker = new Map();
 const RATE_LIMIT_HOUR = 20;
 const RATE_LIMIT_DAY = 50;
 
+/* Allowed origins — only accept requests from your own domain */
+const ALLOWED_ORIGINS = [
+  "https://ask.techbypete.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+];
+
+function isAllowedOrigin(req) {
+  const origin = req.headers["origin"] || req.headers["referer"] || "";
+  if (!origin) return false; // No origin = not a browser request from your site
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+}
+
 function getRateLimit(ip) {
   const now = Date.now();
   if (!ipTracker.has(ip)) {
@@ -954,18 +967,32 @@ function getRateLimit(ip) {
   return record;
 }
 
-/* Layer 4: Bot Detection */
+/* Layer 4: Bot Detection — improved */
 function isBot(req) {
   const ua = (req.headers["user-agent"] || "").toLowerCase();
-  if (!ua || ua.length < 10) return true;
-  const botPatterns = ["bot","crawler","spider","scraper","curl","wget","python-requests","httpie","postman","insomnia"];
-  return botPatterns.some(p => ua.includes(p));
+  /* Block missing or suspiciously short user agents */
+  if (!ua || ua.length < 20) return true;
+  /* Block known automated tool signatures */
+  const botPatterns = [
+    "bot", "crawler", "spider", "scraper",
+    "curl/", "wget/", "python-requests", "python-urllib",
+    "httpie", "postman", "insomnia", "go-http-client",
+    "java/", "okhttp", "axios", "node-fetch",
+    "libwww-perl", "lwp-", "mechanize",
+  ];
+  if (botPatterns.some(p => ua.includes(p))) return true;
+  /* Require at least some browser-like characteristics */
+  const hasBrowserSignal = ua.includes("mozilla") || ua.includes("chrome") || ua.includes("safari") || ua.includes("firefox") || ua.includes("edge");
+  return !hasBrowserSignal;
 }
 
 /* Layer 5: Daily Spend Cap */
 let dailyMessageCount = 0;
 let dailyResetTime = Date.now() + 86400000;
-const MAX_DAILY_MESSAGES = 500;
+/* Read from Vercel env var so you can adjust without a code deploy.
+   Set DAILY_MESSAGE_CAP in Vercel dashboard → Settings → Environment Variables.
+   Default: 150 messages/day (~€7.50/day max at €0.05 average cost per message) */
+const MAX_DAILY_MESSAGES = parseInt(process.env.DAILY_MESSAGE_CAP || "150", 10);
 
 function checkDailyCap() {
   const now = Date.now();
@@ -989,6 +1016,11 @@ setInterval(() => {
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).end();
+  }
+
+  /* --- Origin Validation: only accept requests from your own frontend --- */
+  if (!isAllowedOrigin(req)) {
+    return res.status(403).json({ error: "Forbidden" });
   }
 
   /* --- Layer 4: Bot Detection --- */

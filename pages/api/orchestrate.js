@@ -240,7 +240,12 @@ export const config = {
 /* ============================================
    HANDLER
    ============================================ */
-export default async function handler(req, res) {
+/* Origin validation — only accept requests from your own frontend */
+  const ALLOWED_ORIGINS = ["https://ask.techbypete.com", "http://localhost:3000"];
+  const _origin = req.headers["origin"] || req.headers["referer"] || "";
+  if (!ALLOWED_ORIGINS.some(o => _origin.startsWith(o))) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
   if (req.method !== "POST") return res.status(405).end();
 
   if (isBot(req)) return res.status(403).json({ error: "Access denied" });
