@@ -136,7 +136,7 @@ Be focused. 400-600 words max. Do NOT try to cover domains outside your expertis
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
       max_tokens: 1500,
       system: systemPrompt,
       messages: [{ role: "user", content: userQuery }]
@@ -198,7 +198,7 @@ Now assemble the unified solution for the client.`;
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-6",
+      model: process.env.CLAUDE_MODEL || "claude-sonnet-4-6",
       max_tokens: 4096,
       stream: true,
       system: systemPrompt,
