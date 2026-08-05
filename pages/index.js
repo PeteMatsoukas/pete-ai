@@ -1,7 +1,6 @@
 // TechByPete AI Agent v3.0 — 2026 Linear-Style Redesign
 import { useState, useRef, useEffect } from "react";
 
-
 const CONTACT = {
   email: "p.matsoukas@techbypete.com",
   phone: "+306909596515",
@@ -246,23 +245,47 @@ function MermaidDiagram({ code, id }) {
   useEffect(() => {
     let cancelled = false;
     if (!code || code.trim().length < 20) return;
+
+    /* Auto-repair common syntax issues that cause render failures.
+       Emoji-based diagrams are far more reliable than FontAwesome, so if the
+       model emitted fa:fa-* icons, strip them rather than failing the render. */
+    const sanitize = (raw) => {
+      let c = raw.trim();
+      /* Remove FontAwesome icon syntax that often fails (fa:fa-server, fa:fa-cloud) */
+      c = c.replace(/fa:fa-[\w-]+\s*/g, "");
+      /* Convert <br/> and <br> variants to Mermaid's line break */
+      c = c.replace(/<br\s*\/?>/gi, "<br/>");
+      /* Remove stray trailing semicolons after node definitions that break parsing */
+      c = c.replace(/;\s*$/gm, "");
+      /* Collapse 3+ blank lines */
+      c = c.replace(/\n{3,}/g, "\n\n");
+      return c.trim();
+    };
+
     const render = async () => {
       if (!window.mermaid) {
-        setTimeout(() => { if (!cancelled) render(); }, 500);
+        setTimeout(() => { if (!cancelled) render(); }, 400);
         return;
       }
-      try {
-        const diagramId = "mermaid-" + id + "-" + Math.random().toString(36).slice(2, 9);
-        const { svg } = await window.mermaid.render(diagramId, code.trim());
-        if (!cancelled) {
-          const enhanced = svg.replace(/<svg /, '<svg style="max-width:100%;height:auto;min-width:600px;" ');
-          setSvgContent(enhanced);
-          setRendered(true);
-          setError(false);
+      const attempts = [code.trim(), sanitize(code)];
+      for (let i = 0; i < attempts.length; i++) {
+        try {
+          const diagramId = "mermaid-" + id + "-" + Math.random().toString(36).slice(2, 9);
+          const { svg } = await window.mermaid.render(diagramId, attempts[i]);
+          if (!cancelled) {
+            const enhanced = svg.replace(/<svg /, '<svg style="max-width:100%;height:auto;min-width:600px;" ');
+            setSvgContent(enhanced);
+            setRendered(true);
+            setError(false);
+          }
+          return; /* success — stop trying */
+        } catch (e) {
+          /* try next attempt (sanitized) before giving up */
+          if (i === attempts.length - 1 && !cancelled) { setError(true); setRendered(false); }
         }
-      } catch { if (!cancelled) { setError(true); setRendered(false); } }
+      }
     };
-    const timer = setTimeout(render, 500);
+    const timer = setTimeout(render, 400);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [code, id]);
 
