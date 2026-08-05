@@ -1,45 +1,164 @@
-// TechByPete AI Agent v3.0 — April 2026
+// TechByPete AI Agent v3.1 — Section-level RAG — August 2026
 
-/* --- RAG Knowledge Base --- */
-function loadKnowledgeFiles() {
+/* --- RAG Knowledge Base: section-level chunking + caching + token budget --- */
+
+const STOP_WORDS = new Set(["the","a","an","is","are","was","were","be","been","being","have","has","had","do","does","did","will","would","could","should","may","might","can","shall","to","of","in","for","on","with","at","by","from","as","into","about","between","through","during","before","after","above","below","up","down","out","off","over","under","that","this","these","those","it","its","i","we","you","they","he","she","my","our","your","their","what","how","when","where","which","who","whom","why","not","no","nor","if","or","and","but","so","than","too","very","just","also","like","need","want","help","please","me","us"]);
+
+/* Cache parsed chunks in module memory — survives across requests on a warm
+   serverless instance, so we don't re-read and re-parse every .md on every message. */
+let _chunkCache = null;
+let _chunkCacheTime = 0;
+const CHUNK_CACHE_TTL = 5 * 60 * 1000; /* 5 min — new knowledge files picked up within 5 min of deploy */
+
+/* Rough token estimate: ~4 chars per token for English prose */
+function estimateTokens(str) { return Math.ceil(str.length / 4); }
+
+function keywords(text) {
+  return text.toLowerCase().split(/\W+/).filter(w => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+/* Parse every .md into section-level chunks split on ## headers.
+   Each chunk carries: source file, doc title, section header, body, and
+   a keyword frequency map for fast scoring. */
+function loadChunks() {
+  const now = Date.now();
+  if (_chunkCache && (now - _chunkCacheTime) < CHUNK_CACHE_TTL) return _chunkCache;
+
   try {
     const fs = require("fs");
     const path = require("path");
     const dir = path.join(process.cwd(), "knowledge");
-    if (!fs.existsSync(dir)) return [];
+    if (!fs.existsSync(dir)) { _chunkCache = []; _chunkCacheTime = now; return _chunkCache; }
+
     const files = fs.readdirSync(dir).filter(f => f.endsWith(".md") && f !== "README.md");
-    return files.map(f => {
+    const chunks = [];
+
+    for (const f of files) {
       const content = fs.readFileSync(path.join(dir, f), "utf-8");
-      const title = content.match(/^#\s+(.+)/m)?.[1] || f.replace(".md", "");
-      return { filename: f, title, content };
-    });
-  } catch (e) { console.warn("RAG load error:", e.message); return []; }
+      const docTitle = content.match(/^#\s+(.+)/m)?.[1] || f.replace(".md", "");
+
+      /* The top matter before the first ## (title + Domain/Specialist/Use-when lines)
+         is high-signal for routing — keep it as its own chunk. */
+      const firstH2 = content.search(/^##\s+/m);
+      const preamble = firstH2 > 0 ? content.slice(0, firstH2).trim() : content.trim();
+
+      /* Split the rest on ## headers */
+      const sections = [];
+      if (firstH2 >= 0) {
+        const rest = content.slice(firstH2);
+        const parts = rest.split(/^##\s+/m).filter(Boolean);
+        for (const p of parts) {
+          const nl = p.indexOf("\n");
+          const header = (nl >= 0 ? p.slice(0, nl) : p).trim();
+          const body = (nl >= 0 ? p.slice(nl + 1) : "").trim();
+          if (body) sections.push({ header, body });
+        }
+      }
+
+      /* Preamble chunk (title + use-when) — critical for relevance routing */
+      chunks.push({
+        file: f,
+        docTitle,
+        header: "Overview",
+        text: preamble,
+        /* Boost preamble keywords — the "Use when" line describes when this doc applies */
+        kw: keywords(preamble + " " + preamble),
+      });
+
+      for (const s of sections) {
+        chunks.push({
+          file: f,
+          docTitle,
+          header: s.header,
+          text: `## ${s.header}\n${s.body}`,
+          /* Header words weighted 3x by repetition — a section titled "Pricing"
+             should rank high for a pricing query */
+          kw: keywords(s.header + " " + s.header + " " + s.header + " " + s.body),
+        });
+      }
+    }
+
+    _chunkCache = chunks;
+    _chunkCacheTime = now;
+    return chunks;
+  } catch (e) {
+    console.warn("RAG chunk load error:", e.message);
+    _chunkCache = []; _chunkCacheTime = now;
+    return _chunkCache;
+  }
 }
 
-function searchKnowledge(query, maxResults = 5) {
-  const docs = loadKnowledgeFiles();
-  if (docs.length === 0) return "";
+/* Retrieve the most relevant SECTIONS (not whole docs) for a query,
+   capped by a token budget so the prompt never bloats. */
+function searchKnowledge(query, opts = {}) {
+  const maxChunks = opts.maxChunks || 8;
+  const tokenBudget = opts.tokenBudget || 6000; /* ~6k tokens of knowledge max */
 
-  /* Extract keywords — strip common words */
-  const stopWords = new Set(["the","a","an","is","are","was","were","be","been","being","have","has","had","do","does","did","will","would","could","should","may","might","can","shall","to","of","in","for","on","with","at","by","from","as","into","about","between","through","during","before","after","above","below","up","down","out","off","over","under","that","this","these","those","it","its","i","we","you","they","he","she","my","our","your","their","what","how","when","where","which","who","whom","why","not","no","nor","if","or","and","but","so","than","too","very","just","also","like","need","want","help","please","me","us"]);
-  const words = query.toLowerCase().split(/\W+/).filter(w => w.length > 2 && !stopWords.has(w));
-  if (words.length === 0) return "";
+  const chunks = loadChunks();
+  if (chunks.length === 0) return "";
 
-  /* Score each doc by keyword frequency */
-  const scored = docs.map(doc => {
-    const lower = doc.content.toLowerCase();
-    let score = 0;
-    for (const word of words) {
-      const matches = lower.split(word).length - 1;
-      score += matches;
+  const qWords = keywords(query);
+  if (qWords.length === 0) return "";
+  const qSet = new Set(qWords);
+
+  /* Score each chunk: keyword frequency + distinct-keyword coverage bonus.
+     Coverage matters more than raw frequency — a section that mentions 4 of
+     your 5 query terms beats one that repeats a single term 20 times. */
+  const scored = chunks.map(c => {
+    let freq = 0;
+    let distinct = 0;
+    const seen = new Set();
+    for (const w of c.kw) {
+      if (qSet.has(w)) {
+        freq++;
+        if (!seen.has(w)) { seen.add(w); distinct++; }
+      }
     }
-    return { ...doc, score };
-  }).filter(d => d.score > 0).sort((a, b) => b.score - a.score).slice(0, maxResults);
+    const score = freq + distinct * 5; /* coverage weighted heavily */
+    return { ...c, score };
+  }).filter(c => c.score > 0).sort((a, b) => b.score - a.score);
 
   if (scored.length === 0) return "";
 
-  return "\n\n## RELEVANT KNOWLEDGE BASE DOCUMENTS\nThe following documents from Pete's knowledge base are relevant to this conversation. Reference them naturally — do not mention that you searched a database.\n\n" +
-    scored.map(d => `### ${d.title}\n${d.content}`).join("\n\n---\n\n");
+  /* Relative threshold: drop chunks scoring below 15% of the top score.
+     Prevents a doc that matched one generic word (e.g. "migration") from
+     riding along with a doc that matched the whole query. */
+  const topScore = scored[0].score;
+  const threshold = Math.max(topScore * 0.15, 2);
+  const relevant = scored.filter(c => c.score >= threshold);
+
+  /* Fill up to maxChunks / tokenBudget, avoiding two chunks from the same doc
+     dominating unless they're both strong (keeps results diverse). */
+  const picked = [];
+  let usedTokens = 0;
+  const perDocCount = {};
+
+  for (const c of relevant) {
+    if (picked.length >= maxChunks) break;
+    const t = estimateTokens(c.text);
+    if (usedTokens + t > tokenBudget) continue;
+    /* Allow at most 3 sections from any single document */
+    perDocCount[c.file] = (perDocCount[c.file] || 0);
+    if (perDocCount[c.file] >= 3) continue;
+    picked.push(c);
+    perDocCount[c.file]++;
+    usedTokens += t;
+  }
+
+  if (picked.length === 0) return "";
+
+  /* Group picked sections under their document titles for clean context */
+  const byDoc = {};
+  for (const c of picked) {
+    if (!byDoc[c.docTitle]) byDoc[c.docTitle] = [];
+    byDoc[c.docTitle].push(c.text);
+  }
+
+  const blocks = Object.entries(byDoc).map(([title, texts]) =>
+    `### From: ${title}\n\n${texts.join("\n\n")}`
+  ).join("\n\n---\n\n");
+
+  return "\n\n## RELEVANT KNOWLEDGE BASE (Pete's real project experience)\nThe following are the most relevant sections from Pete's methodology and past engagements. Reference them naturally as your own experience — never say you searched a database or knowledge base.\n\n" + blocks;
 }
 /* --- End RAG --- */
 
