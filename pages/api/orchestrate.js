@@ -63,8 +63,103 @@ const SPECIALISTS = {
 };
 
 /* ============================================
-   ORCHESTRATOR LOGIC
+   SECTION-LEVEL RAG — shared knowledge retrieval
+   Lets each specialist pull relevant sections from Pete's full SOW library,
+   not just their single hardcoded specialist file.
    ============================================ */
+const STOP_WORDS = new Set(["the","a","an","is","are","was","were","be","been","being","have","has","had","do","does","did","will","would","could","should","may","might","can","shall","to","of","in","for","on","with","at","by","from","as","into","about","between","through","during","before","after","above","below","up","down","out","off","over","under","that","this","these","those","it","its","i","we","you","they","he","she","my","our","your","their","what","how","when","where","which","who","whom","why","not","no","nor","if","or","and","but","so","than","too","very","just","also","like","need","want","help","please","me","us"]);
+
+let _chunkCache = null;
+let _chunkCacheTime = 0;
+const CHUNK_CACHE_TTL = 5 * 60 * 1000;
+
+function estimateTokens(str) { return Math.ceil(str.length / 4); }
+function kwOf(text) { return text.toLowerCase().split(/\W+/).filter(w => w.length > 2 && !STOP_WORDS.has(w)); }
+
+function loadAllChunks() {
+  const now = Date.now();
+  if (_chunkCache && (now - _chunkCacheTime) < CHUNK_CACHE_TTL) return _chunkCache;
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const dir = path.join(process.cwd(), "knowledge");
+    if (!fs.existsSync(dir)) { _chunkCache = []; _chunkCacheTime = now; return _chunkCache; }
+    /* Only search SOW/reference/assessment/design files — NOT the specialist-*.md
+       files (those are loaded directly by their owning specialist). */
+    const files = fs.readdirSync(dir).filter(f =>
+      f.endsWith(".md") && f !== "README.md" && !f.startsWith("specialist-"));
+    const chunks = [];
+    for (const f of files) {
+      const content = fs.readFileSync(path.join(dir, f), "utf-8");
+      const docTitle = content.match(/^#\s+(.+)/m)?.[1] || f.replace(".md", "");
+      const firstH2 = content.search(/^##\s+/m);
+      const preamble = firstH2 > 0 ? content.slice(0, firstH2).trim() : content.trim();
+      chunks.push({ file: f, docTitle, header: "Overview", text: preamble, kw: kwOf(preamble + " " + preamble) });
+      if (firstH2 >= 0) {
+        const parts = content.slice(firstH2).split(/^##\s+/m).filter(Boolean);
+        for (const p of parts) {
+          const nl = p.indexOf("\n");
+          const header = (nl >= 0 ? p.slice(0, nl) : p).trim();
+          const body = (nl >= 0 ? p.slice(nl + 1) : "").trim();
+          if (body) chunks.push({ file: f, docTitle, header, text: `## ${header}\n${body}`, kw: kwOf(header + " " + header + " " + header + " " + body) });
+        }
+      }
+    }
+    _chunkCache = chunks; _chunkCacheTime = now;
+    return chunks;
+  } catch (e) { console.warn("Orchestrator RAG error:", e.message); _chunkCache = []; _chunkCacheTime = now; return _chunkCache; }
+}
+
+/* Search the SOW library for sections relevant to a specialist's domain + the user query.
+   domainKeywords biases retrieval toward this specialist's area. */
+function searchSOWSections(userQuery, domainKeywords, opts = {}) {
+  const maxChunks = opts.maxChunks || 4;
+  const tokenBudget = opts.tokenBudget || 2500; /* per-specialist budget — kept tight */
+  const chunks = loadAllChunks();
+  if (chunks.length === 0) return "";
+
+  const qWords = kwOf(userQuery + " " + domainKeywords.join(" "));
+  if (qWords.length === 0) return "";
+  const qSet = new Set(qWords);
+  /* Domain keywords get extra weight so an Azure specialist pulls Azure SOWs */
+  const domainSet = new Set(domainKeywords.flatMap(k => kwOf(k)));
+
+  const scored = chunks.map(c => {
+    let freq = 0, distinct = 0;
+    const seen = new Set();
+    for (const w of c.kw) {
+      if (qSet.has(w)) {
+        freq += domainSet.has(w) ? 2 : 1; /* domain term matches count double */
+        if (!seen.has(w)) { seen.add(w); distinct++; }
+      }
+    }
+    return { ...c, score: freq + distinct * 5 };
+  }).filter(c => c.score > 0).sort((a, b) => b.score - a.score);
+
+  if (scored.length === 0) return "";
+  const topScore = scored[0].score;
+  const threshold = Math.max(topScore * 0.2, 3);
+  const relevant = scored.filter(c => c.score >= threshold);
+
+  const picked = [];
+  let usedTokens = 0;
+  const perDoc = {};
+  for (const c of relevant) {
+    if (picked.length >= maxChunks) break;
+    const t = estimateTokens(c.text);
+    if (usedTokens + t > tokenBudget) continue;
+    perDoc[c.file] = perDoc[c.file] || 0;
+    if (perDoc[c.file] >= 2) continue;
+    picked.push(c); perDoc[c.file]++; usedTokens += t;
+  }
+  if (picked.length === 0) return "";
+
+  const byDoc = {};
+  for (const c of picked) { (byDoc[c.docTitle] = byDoc[c.docTitle] || []).push(c.text); }
+  return "\n\n## RELEVANT PAST ENGAGEMENTS (Pete's real SOW experience)\nApply these real methodologies, pricing ranges, and lessons from Pete's actual past projects:\n\n" +
+    Object.entries(byDoc).map(([t, texts]) => `### From: ${t}\n\n${texts.join("\n\n")}`).join("\n\n---\n\n");
+}
+
 
 function detectSpecialists(query) {
   const lower = query.toLowerCase();
@@ -96,10 +191,15 @@ function loadSpecialistKnowledge(filename) {
 
 async function callSpecialist(specialist, userQuery) {
   const knowledge = loadSpecialistKnowledge(specialist.spec.file);
+  /* Pull relevant sections from Pete's real SOW library, biased to this
+     specialist's domain — so the Azure specialist sees real Azure SOWs, etc. */
+  const sowSections = searchSOWSections(userQuery, specialist.spec.keywords || []);
+
   const systemPrompt = `${specialist.spec.prompt}
 
 ## YOUR KNOWLEDGE BASE
 ${knowledge}
+${sowSections}
 
 ## OUTPUT FORMAT
 Provide a focused, concise analysis in your domain. Structure your response as:
@@ -116,12 +216,12 @@ Provide a focused, concise analysis in your domain. Structure your response as:
 [Specific products, configurations, sizing, commands, or architecture patterns]
 
 **Estimated cost/timeline for my scope:**
-[Concrete pricing range and timeline from your specialist knowledge]
+[Concrete pricing range and timeline — use real ranges from Pete's past engagements above where relevant]
 
 **Dependencies on other domains:**
 [What other specialists need to coordinate with you]
 
-Be focused. 400-600 words max. Do NOT try to cover domains outside your expertise.`;
+Be focused. 400-600 words max. Do NOT try to cover domains outside your expertise. Reference the real SOW methodologies and pricing naturally as your own experience — never mention a knowledge base or database.`;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
